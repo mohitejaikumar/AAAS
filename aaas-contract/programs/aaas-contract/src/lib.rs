@@ -207,26 +207,60 @@ pub mod aaas_contract {
                     user_challenge_account.score = *score;
                 }
             }
-            (
-                ChallengeType::Github { commits: _ },
-                ChallengeVerificationType::VoteBased { is_completed },
-            ) => {
-                if *is_completed {
-                    user_challenge_account.is_challenge_completed = true;
-                    user_challenge_account.vote_in_positive += 1;
-                } else {
-                    user_challenge_account.vote_in_negative += 1;
-                }
-            }
-            (
-                ChallengeType::NonMonitored,
-                ChallengeVerificationType::VoteBased { is_completed },
-            ) => {
-                if *is_completed {
-                    user_challenge_account.is_challenge_completed = true;
-                    user_challenge_account.vote_in_positive += 1;
-                } else {
-                    user_challenge_account.vote_in_negative += 1;
+            _ => return Err(ErrorCode::InvalidVerificationType.into()),
+        }
+
+        Ok(())
+    }
+
+    // this will be called by the community members
+    pub fn vote_for_vote_based_challenge(
+        context: Context<VoteForVoteBasedChallenge>,
+        _challenge_id: u64,
+        _user_address: Pubkey,
+        challenge_verification: ChallengeVerificationType,
+    ) -> Result<()> {
+        let challenge_account = &mut context.accounts.challenge_account;
+        let user_challenge_account = &mut context.accounts.user_challenge_account;
+
+        // Check if the user has participated in the challenge
+        if !user_challenge_account.is_joined {
+            return Err(ErrorCode::UserDidNotParticipate.into());
+        }
+        // Check if voter is not voting for himself
+        if user_challenge_account.user_address == context.accounts.signer.key() {
+            return Err(ErrorCode::VoterIsVotingForHimself.into());
+        }
+        // check if the challenge is ended or not
+        let current_time = Clock::get()?.unix_timestamp;
+        if challenge_account.end_time > current_time {
+            return Err(ErrorCode::ChallengeNotEnded.into());
+        }
+
+        // Check if the challenge is within the time_end + 30 minutes
+        if challenge_account.end_time + 30 * 60 < current_time {
+            return Err(ErrorCode::ChallengeVerificationTimeEnded.into());
+        }
+
+        match challenge_verification {
+            ChallengeVerificationType::VoteBased { is_completed } => {
+                // check if the challenge is also vote based
+                match challenge_account.challenge_information.challenge_type {
+                    ChallengeType::VoteBased => {
+                        if is_completed {
+                            user_challenge_account.vote_in_positive += 1;
+                        } else {
+                            user_challenge_account.vote_in_negative += 1;
+                        }
+                    }
+                    ChallengeType::Github { commits: _ } => {
+                        if is_completed {
+                            user_challenge_account.vote_in_positive += 1;
+                        } else {
+                            user_challenge_account.vote_in_negative += 1;
+                        }
+                    }
+                    _ => return Err(ErrorCode::InvalidVerificationType.into()),
                 }
             }
             _ => return Err(ErrorCode::InvalidVerificationType.into()),
@@ -330,6 +364,25 @@ pub struct ClaimChallenge<'info> {
 #[derive(Accounts)]
 #[instruction(challenge_id: u64, user_address: Pubkey)]
 pub struct UpdateChallengeStatus<'info> {
+    #[account(mut, address = pubkey!("7R6C2jFctzrwUZ9N85qiHBbE2xdcQzq8QXpZYFcKRCyx"))]
+    pub signer: Signer<'info>,
+    #[account(
+        mut,
+        seeds = [b"challenge_account".as_ref(), challenge_id.to_le_bytes().as_ref()],
+        bump = challenge_account.bump
+    )]
+    pub challenge_account: Account<'info, ChallengeAccount>,
+    #[account(
+        mut,
+        seeds = [b"user_challenge_account".as_ref(), user_address.as_ref(), challenge_account.key().as_ref()],
+        bump = user_challenge_account.bump
+    )]
+    pub user_challenge_account: Account<'info, UserChallengeAccount>,
+}
+
+#[derive(Accounts)]
+#[instruction(challenge_id: u64, user_address: Pubkey)]
+pub struct VoteForVoteBasedChallenge<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     #[account(
@@ -353,7 +406,7 @@ pub enum ChallengeType {
     #[doc = "this will be verified by the community members, (because github is subjective )"]
     Github { commits: u64 },
     #[doc = "this will be verified by the community members, because goal can be anything, eg:- study for 5 hr , read 100 pages , etc"]
-    NonMonitored,
+    VoteBased,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
@@ -441,13 +494,17 @@ pub enum ErrorCode {
     ChallengeUnderVerification,
     #[msg("Challenge verification time ended")]
     ChallengeVerificationTimeEnded,
+    #[msg("Voter is voting for himself")]
+    VoterIsVotingForHimself,
+    #[msg("Unauthorized owner")]
+    UnAuthorizedOwner,
 }
 
 #[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
 pub enum ChallengeVerificationType {
     #[doc = "this will be verified by the off-chain verification service"]
     Monitored { score: u64, is_completed: bool },
-    #[doc = "this will be verified by the community members, (because github is subjective )"]
+    #[doc = "this will be verified by the community members, (because it is for subjective challenges)"]
     VoteBased { is_completed: bool },
 }
 
