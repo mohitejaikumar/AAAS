@@ -121,7 +121,7 @@ pub mod aaas_contract {
         user_account.total_participations += 1;
         user_account.total_money_deposited += challenge_account.money_per_participant;
         user_account.bump = context.bumps.user_account;
-        
+
         // update the challenge account
         challenge_account.total_participants += 1;
         challenge_account.money_pool += challenge_account.money_per_participant;
@@ -240,6 +240,7 @@ pub mod aaas_contract {
     ) -> Result<()> {
         let challenge_account = &mut context.accounts.challenge_account;
         let user_challenge_account = &mut context.accounts.user_challenge_account;
+        let vote_account = &mut context.accounts.vote_account;
 
         // Check if the user has participated in the challenge
         if !user_challenge_account.is_joined {
@@ -260,6 +261,11 @@ pub mod aaas_contract {
             return Err(ErrorCode::ChallengeVerificationTimeEnded.into());
         }
 
+        // check if the user has already voted
+        if vote_account.is_voted {
+            return Err(ErrorCode::UserHasAlreadyVoted.into());
+        }
+
         match challenge_verification {
             ChallengeVerificationType::VoteBased { is_completed } => {
                 // check if the challenge is also vote based
@@ -270,6 +276,11 @@ pub mod aaas_contract {
                         } else {
                             user_challenge_account.vote_in_negative += 1;
                         }
+                        vote_account.is_voted = true;
+                        vote_account.is_completed = is_completed;
+                        vote_account.bump = context.bumps.vote_account;
+                        vote_account.challenge_address = challenge_account.key();
+                        vote_account.user_address = user_challenge_account.user_address;
                     }
                     ChallengeType::Github { commits: _ } => {
                         if is_completed {
@@ -277,6 +288,11 @@ pub mod aaas_contract {
                         } else {
                             user_challenge_account.vote_in_negative += 1;
                         }
+                        vote_account.is_voted = true;
+                        vote_account.is_completed = is_completed;
+                        vote_account.bump = context.bumps.vote_account;
+                        vote_account.challenge_address = challenge_account.key();
+                        vote_account.user_address = user_challenge_account.user_address;
                     }
                     _ => return Err(ErrorCode::InvalidVerificationType.into()),
                 }
@@ -443,6 +459,15 @@ pub struct VoteForVoteBasedChallenge<'info> {
         bump = user_challenge_account.bump
     )]
     pub user_challenge_account: Account<'info, UserChallengeAccount>,
+    #[account(
+        init_if_needed,
+        payer = signer,
+        space = 8 + VoteAccount::INIT_SPACE,
+        seeds = [b"vote_account".as_ref(), challenge_account.key().as_ref(), user_address.as_ref()],
+        bump
+    )]
+    pub vote_account: Account<'info, VoteAccount>,
+    pub system_program: Program<'info, System>,
 }
 // -----------------------------------------------------------------------------------------------------------
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
@@ -515,6 +540,16 @@ pub struct UserChallengeAccount {
     pub vote_in_negative: u64,
 }
 
+#[account]
+#[derive(InitSpace)]
+pub struct VoteAccount {
+    pub challenge_address: Pubkey,
+    pub user_address: Pubkey,
+    pub is_voted: bool,
+    pub is_completed: bool,
+    pub bump: u8,
+}
+
 #[error_code]
 pub enum ErrorCode {
     #[msg("User is not in the private group")]
@@ -551,6 +586,8 @@ pub enum ErrorCode {
     VoterIsVotingForHimself,
     #[msg("Unauthorized owner")]
     UnAuthorizedOwner,
+    #[msg("User has already voted")]
+    UserHasAlreadyVoted,
 }
 
 #[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize)]
