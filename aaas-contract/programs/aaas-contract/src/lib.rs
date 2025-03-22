@@ -8,6 +8,14 @@ declare_id!("9BojoNnqcLQ74aBpw7zg76WQRPAac5RwgMcUeeC54R1x");
 #[program]
 pub mod aaas_contract {
     use super::*;
+
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        let state = &mut ctx.accounts.state;
+        state.owner = *ctx.accounts.signer.key; // Store the deployer's key
+        state.bump = ctx.bumps.state;
+        Ok(())
+    }
+
     // this will be called by the owner of the contract
     pub fn initialize_challenge(
         context: Context<InitializeChallenge>,
@@ -48,6 +56,7 @@ pub mod aaas_contract {
         challenge_account.treasury_account = context.accounts.treasury_account.key();
         challenge_account.is_private = is_private;
         challenge_account.private_group = private_group;
+        challenge_account.bump = context.bumps.challenge_account;
         Ok(())
     }
 
@@ -84,7 +93,7 @@ pub mod aaas_contract {
 
         // transfer the money from the user to treasury account
         let transfer_accounts_option = TransferChecked {
-            from: user_account.to_account_info(),
+            from: context.accounts.user_token_account.to_account_info(),
             to: treasury_account.to_account_info(),
             mint: context.accounts.mint.to_account_info(),
             authority: context.accounts.signer.to_account_info(),
@@ -105,12 +114,14 @@ pub mod aaas_contract {
         user_challenge_account.challenge_address = challenge_account.key();
         user_challenge_account.user_address = context.accounts.signer.key();
         user_challenge_account.is_challenge_completed = false;
+        user_challenge_account.bump = context.bumps.user_challenge_account;
 
         // update the user account
         user_account.user_name = user_name;
         user_account.total_participations += 1;
         user_account.total_money_deposited += challenge_account.money_per_participant;
-
+        user_account.bump = context.bumps.user_account;
+        
         // update the challenge account
         challenge_account.total_participants += 1;
         challenge_account.money_pool += challenge_account.money_per_participant;
@@ -152,7 +163,7 @@ pub mod aaas_contract {
         // refund the money from the treasury account to the user account
         let transfer_accounts_option = TransferChecked {
             from: treasury_account.to_account_info(),
-            to: user_account.to_account_info(),
+            to: context.accounts.signer.to_account_info(),
             mint: context.accounts.mint.to_account_info(),
             authority: context.accounts.treasury_account.to_account_info(),
         };
@@ -172,6 +183,13 @@ pub mod aaas_contract {
         _user_address: Pubkey,
         challenge_verification: ChallengeVerification,
     ) -> Result<()> {
+        let state = &context.accounts.state;
+        require_keys_eq!(
+            context.accounts.signer.key(),
+            state.owner,
+            ErrorCode::UnAuthorizedOwner
+        );
+
         let challenge_account = &mut context.accounts.challenge_account;
         let user_challenge_account = &mut context.accounts.user_challenge_account;
 
@@ -270,6 +288,22 @@ pub mod aaas_contract {
     }
 }
 
+
+#[derive(Accounts)]
+pub struct Initialize<'info> {
+    #[account(
+        init, 
+        payer = signer,
+        space = 8 + ProgramState::INIT_SPACE,
+        seeds = [b"program_owner".as_ref()],
+        bump
+    )]
+    pub state: Account<'info, ProgramState>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 #[derive(Accounts)]
 #[instruction(challenge_id: u64)]
 pub struct InitializeChallenge<'info> {
@@ -311,6 +345,13 @@ pub struct JoinChallenge<'info> {
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut)]
     pub treasury_account: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = signer,
+        associated_token::token_program = token_program,
+    )]
+    pub user_token_account: InterfaceAccount<'info, TokenAccount>,
     #[account(
         init_if_needed,
         payer = signer,
@@ -364,8 +405,13 @@ pub struct ClaimChallenge<'info> {
 #[derive(Accounts)]
 #[instruction(challenge_id: u64, user_address: Pubkey)]
 pub struct UpdateChallengeStatus<'info> {
-    #[account(mut, address = pubkey!("7R6C2jFctzrwUZ9N85qiHBbE2xdcQzq8QXpZYFcKRCyx"))]
+    #[account(mut)]
     pub signer: Signer<'info>,
+    #[account(
+        seeds = [b"program_owner".as_ref()],
+        bump = state.bump
+    )]
+    pub state: Account<'info, ProgramState>,
     #[account(
         mut,
         seeds = [b"challenge_account".as_ref(), challenge_id.to_le_bytes().as_ref()],
@@ -416,6 +462,13 @@ pub struct ChallengeInformation {
     pub challenge_name: String,
     #[max_len(256)]
     pub challenge_description: String,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ProgramState {
+    pub owner: Pubkey,
+    pub bump: u8,
 }
 
 #[account]
