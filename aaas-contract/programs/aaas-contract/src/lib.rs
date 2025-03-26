@@ -64,6 +64,7 @@ pub mod aaas_contract {
         context: Context<JoinChallenge>,
         _challenge_id: u64,
         user_name: String,
+        description: String,
     ) -> Result<()> {
         let challenge_account = &mut context.accounts.challenge_account;
         let user_account = &mut context.accounts.user_account;
@@ -115,6 +116,7 @@ pub mod aaas_contract {
         user_challenge_account.user_address = context.accounts.signer.key();
         user_challenge_account.is_challenge_completed = false;
         user_challenge_account.bump = context.bumps.user_challenge_account;
+        user_challenge_account.description = description;
 
         // update the user account
         user_account.user_name = user_name;
@@ -282,7 +284,7 @@ pub mod aaas_contract {
                         vote_account.challenge_address = challenge_account.key();
                         vote_account.user_address = user_challenge_account.user_address;
                     }
-                    ChallengeType::Github { commits: _ } => {
+                    ChallengeType::Github { commits: _} => {
                         if is_completed {
                             user_challenge_account.vote_in_positive += 1;
                         } else {
@@ -475,7 +477,9 @@ pub enum ChallengeType {
     #[doc = "this will be verified by the off-chain verification service"]
     GoogleFit { steps: u64 },
     #[doc = "this will be verified by the community members, (because github is subjective )"]
-    Github { commits: u64 },
+    Github { 
+        commits: u64, 
+    },
     #[doc = "this will be verified by the community members, because goal can be anything, eg:- study for 5 hr , read 100 pages , etc"]
     VoteBased,
 }
@@ -530,6 +534,8 @@ pub struct UserAccount {
 #[derive(InitSpace)]
 pub struct UserChallengeAccount {
     pub challenge_address: Pubkey,
+    #[max_len(300)]
+    pub description: String,
     pub user_address: Pubkey,
     pub is_joined: bool,
     pub money_deposited: u64,
