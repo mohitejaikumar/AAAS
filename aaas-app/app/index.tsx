@@ -1,23 +1,21 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Text, View, TouchableOpacity, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useWallet } from './contexts/WalletContext';
 
 export default function WalletConnectionScreen() {
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+  const { isConnecting, isConnected, connectWallet } = useWallet();
   const router = useRouter();
 
   const handleConnectWallet = async () => {
-    setIsConnecting(true);
-    // Mock wallet connection for now
-    setTimeout(() => {
-      setIsConnected(true);
-      setIsConnecting(false);
-      // Navigate to challenges screen after successful connection
-      router.replace('/challenges');
-    }, 1500);
+    try {
+      await connectWallet();
+      // Navigation is now handled in the WalletContext
+    } catch (error) {
+      console.error('Failed to connect wallet', error);
+    }
   };
 
   return (

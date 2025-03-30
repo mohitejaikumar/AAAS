@@ -23,6 +23,7 @@ const challengeFormSchema = z.object({
   title: z.string().min(4, { message: 'Title must be at least 4 characters' }),
   description: z.string().min(10, { message: 'Description must be at least 10 characters' }),
   challenge_type: z.enum(['GoogleFit', 'GitHub', 'Votebased']),
+  steps_per_day: z.number().min(1000, { message: 'Steps per day must be at least 1000' }).optional(),
   start_time: z.date(),
   end_time: z.date(),
   money_per_participant: z.number().min(1, { message: 'Amount must be at least 1 SOL' }),
@@ -45,6 +46,7 @@ export default function CreateChallengeScreen() {
       title: '',
       description: '',
       challenge_type: 'GoogleFit',
+      steps_per_day: 10000,
       start_time: new Date(),
       end_time: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // One week from now
       money_per_participant: 10,
@@ -254,6 +256,7 @@ export default function CreateChallengeScreen() {
                     value={value}
                     mode="date"
                     display="default"
+                    minimumDate={new Date()}
                     onChange={(event, selectedDate) => {
                       setShowStartDatePicker(false);
                       if (selectedDate) {
@@ -297,6 +300,7 @@ export default function CreateChallengeScreen() {
                     value={value}
                     mode="date"
                     display="default"
+                    minimumDate={new Date()}
                     onChange={(event, selectedDate) => {
                       setShowEndDatePicker(false);
                       if (selectedDate) {
@@ -329,6 +333,29 @@ export default function CreateChallengeScreen() {
               <Text style={styles.errorText}>{errors.money_per_participant.message}</Text>
             )}
           </View>
+
+          {challengeType === 'GoogleFit' && (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Steps/Day</Text>
+              <Controller
+                control={control}
+                name="steps_per_day"
+                render={({ field: { onChange, onBlur, value } }) => (
+                  <TextInput
+                    style={[styles.input, errors.steps_per_day && styles.inputError]}
+                    placeholder="10000"
+                    onBlur={onBlur}
+                    onChangeText={(text) => onChange(Number(text) || 0)}
+                    value={value ? value.toString() : ''}
+                    keyboardType="numeric"
+                  />
+                )}
+              />
+              {errors.steps_per_day && (
+                <Text style={styles.errorText}>{errors.steps_per_day.message}</Text>
+              )}
+            </View>
+          )}
         </View>
 
         <View style={styles.formSection}>
