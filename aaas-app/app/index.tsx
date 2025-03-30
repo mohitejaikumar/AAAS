@@ -4,6 +4,28 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useWallet } from './contexts/WalletContext';
+import { getRandomValues as expoCryptoGetRandomValues } from "expo-crypto";
+import { Buffer } from "buffer";
+global.Buffer = Buffer;
+
+// getRandomValues polyfill
+class Crypto {
+  getRandomValues = expoCryptoGetRandomValues;
+}
+
+const webCrypto = typeof crypto !== "undefined" ? crypto : new Crypto();
+
+(() => {
+  if (typeof crypto === "undefined") {
+    Object.defineProperty(window, "crypto", {
+      configurable: true,
+      enumerable: true,
+      get: () => webCrypto,
+    });
+  }
+})();
+
+import "expo-router/entry";
 
 export default function WalletConnectionScreen() {
   const { isConnecting, isConnected, connectWallet } = useWallet();
