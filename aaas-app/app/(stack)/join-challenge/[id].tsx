@@ -1,93 +1,174 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { z } from 'zod';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-
-// Mock challenge data
-const MOCK_CHALLENGES = {
-  '1': {
-    id: '1',
-    title: 'Weekly Steps Challenge',
-    challenge_type: 'GoogleFit',
-    money_per_participant: 10,
-  },
-  '2': {
-    id: '2',
-    title: 'Open Source Contribution',
-    challenge_type: 'GitHub',
-    money_per_participant: 100,
-  },
-  '3': {
-    id: '3',
-    title: 'Best UI Design',
-    challenge_type: 'Votebased',
-    money_per_participant: 50,
-  },
-};
-
-// Form validation schema
-const joinChallengeSchema = z.object({
-  username: z.string().min(3, { message: 'Username must be at least 3 characters' }),
-  description: z.string().min(10, { message: 'Description must be at least 10 characters' }),
-  acceptTerms: z.boolean().refine(val => val === true, {
-    message: 'You must accept the terms and conditions',
-  }),
-});
-
-type JoinChallengeFormValues = z.infer<typeof joinChallengeSchema>;
+  ScrollView,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
+import { useWallet } from "../../contexts/WalletContext";
+import { useAaasContract } from "../../hooks/useAaasContract";
+import * as contractService from "../../services/contractService";
+import { PublicKey } from "@solana/web3.js";
 
 export default function JoinChallengeScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const { isConnected, userPublickey } = useWallet();
+  const { program, joinChallenge } = useAaasContract();
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [challenge, setChallenge] = useState<any>(null);
+  const [username, setUsername] = useState("");
+  const [description, setDescription] = useState("");
 
-  useEffect(() => {
-    // Simulate API fetch
-    setTimeout(() => {
-      setChallenge(MOCK_CHALLENGES[id as string]);
-      setIsLoading(false);
-    }, 300);
-  }, [id]);
+  // Load challenge details
+  const loadChallengeDetails = async () => {
+    if (!program || !id) return;
 
-  const { control, handleSubmit, formState: { errors } } = useForm<JoinChallengeFormValues>({
-    resolver: zodResolver(joinChallengeSchema),
-    defaultValues: {
-      username: '',
-      description: '',
-      acceptTerms: false,
-    }
-  });
+    try {
+      setIsLoading(true);
 
-  const onSubmit = (data: JoinChallengeFormValues) => {
-    setIsSubmitting(true);
-    
-    // Mock submission - would connect to Solana in a real app
-    setTimeout(() => {
-      console.log('Joining challenge:', { challengeId: id, ...data });
-      setIsSubmitting(false);
-      Alert.alert(
-        'Challenge Joined!',
-        'You have successfully joined the challenge.',
-        [{ text: 'OK', onPress: () => router.replace('/challenges') }]
+      // Get the challenge account PDA
+      const challengeId = parseInt(id as string, 10);
+      const challengeAccountPDA = await contractService.getChallengeAccountPDA(
+        challengeId
       );
-    }, 1500);
+
+      // Fetch the challenge data
+      const challengeData = await program.account.challengeAccount.fetch(
+        challengeAccountPDA
+      );
+
+      // Format challenge data for display
+      const formattedChallenge = {
+        id: challengeData.challengeId.toString(),
+        title: challengeData.challengeInformation.challengeName || "Challenge",
+        description:
+          challengeData.challengeInformation.challengeDescription ||
+          "No description provided",
+        challenge_type: getChallengeTypeString(
+          challengeData.challengeInformation.challengeType
+        ),
+        start_time: new Date(challengeData.startTime * 1000),
+        end_time: new Date(challengeData.endTime * 1000),
+        total_participants: challengeData.totalParticipants.toNumber(),
+        total_votes: challengeData.totalVotes.toNumber(),
+        money_pool: challengeData.moneyPool.toNumber() / 1_000_000_000, // Convert from lamports to SOL
+        money_per_participant:
+          challengeData.moneyPerParticipant.toNumber() / 1_000_000_000,
+        is_private: challengeData.isPrivate,
+        challengeInformation: challengeData.challengeInformation,
+      };
+
+      setChallenge(formattedChallenge);
+
+      // Check if user has already joined this challenge
+      if (userPublickey) {
+        try {
+          const userChallengeAccount =
+            await contractService.getUserChallengeAccountPDA(
+              userPublickey,
+              challengeAccountPDA
+            );
+
+          // If we can fetch the user challenge account, they've already joined
+          await program.account.userChallengeAccount.fetch(
+            userChallengeAccount
+          );
+          Alert.alert(
+            "Already Joined",
+            "You have already joined this challenge.",
+            [{ text: "OK", onPress: () => router.back() }]
+          );
+        } catch (error) {
+          // User hasn't joined, which is expected
+          console.log("User has not joined this challenge yet");
+        }
+      }
+    } catch (error) {
+      console.error("Error loading challenge details:", error);
+      Alert.alert(
+        "Error",
+        "Failed to load challenge details. Please try again later.",
+        [{ text: "OK", onPress: () => router.back() }]
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  if (isLoading || !challenge) {
+  // Get challenge type as a string
+  const getChallengeTypeString = (challengeType: any): string => {
+    if (challengeType.googleFit) return "GoogleFit";
+    if (challengeType.github) return "GitHub";
+    if (challengeType.voteBased) return "Votebased";
+    return "Unknown";
+  };
+
+  // Load challenge when component mounts
+  useEffect(() => {
+    if (program && id) {
+      loadChallengeDetails();
+    }
+  }, [program, id]);
+
+  // Handle form submission
+  const handleJoinChallenge = async () => {
+    if (!isConnected || !userPublickey || !challenge) {
+      Alert.alert("Error", "You must be connected to join this challenge.");
+      return;
+    }
+
+    if (!username.trim()) {
+      Alert.alert("Missing Information", "Please enter a username.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // Call the joinChallenge function from contract hook
+      const signature = await joinChallenge(
+        parseInt(challenge.id, 10),
+        username.trim(),
+        description.trim() || "I'm excited to participate!"
+      );
+
+      console.log("Joined challenge with signature:", signature);
+
+      Alert.alert("Success", "You have successfully joined the challenge!", [
+        {
+          text: "OK",
+          onPress: () =>
+            router.replace(`/(stack)/challenge-details/${challenge.id}`),
+        },
+      ]);
+    } catch (error) {
+      console.error("Error joining challenge:", error);
+      Alert.alert(
+        "Error",
+        "Failed to join the challenge. Please try again later.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Format money amount
+  const formatMoney = (amount: number) => {
+    return amount.toFixed(2) + " SOL";
+  };
+
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#6366f1" />
@@ -95,299 +176,239 @@ export default function JoinChallengeScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Join Challenge</Text>
-          
-          <View style={styles.challengeInfo}>
-            <Text style={styles.challengeName}>{challenge.title}</Text>
-            <View style={styles.badgeContainer}>
-              <Text style={styles.challengeTypeBadge}>{challenge.challenge_type}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.entryFeeContainer}>
-            <Ionicons name="wallet-outline" size={20} color="#4b5563" />
-            <Text style={styles.entryFeeText}>
-              Entry Fee: <Text style={styles.entryFeeAmount}>{challenge.money_per_participant} SOL</Text>
-            </Text>
-          </View>
-        </View>
-        
-        <View style={styles.formContainer}>
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Username</Text>
-            <Controller
-              control={control}
-              name="username"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.input, errors.username && styles.inputError]}
-                  placeholder="Enter your display name"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                />
-              )}
-            />
-            {errors.username && (
-              <Text style={styles.errorText}>{errors.username.message}</Text>
-            )}
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>Description</Text>
-            <Controller
-              control={control}
-              name="description"
-              render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  style={[styles.textArea, errors.description && styles.inputError]}
-                  placeholder="Tell us about yourself and why you're joining this challenge"
-                  onBlur={onBlur}
-                  onChangeText={onChange}
-                  value={value}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-              )}
-            />
-            {errors.description && (
-              <Text style={styles.errorText}>{errors.description.message}</Text>
-            )}
-          </View>
-          
-          <View style={styles.formGroup}>
-            <Controller
-              control={control}
-              name="acceptTerms"
-              render={({ field: { onChange, value } }) => (
-                <TouchableOpacity 
-                  style={styles.termsContainer}
-                  onPress={() => onChange(!value)}
-                >
-                  <View style={[styles.checkbox, value ? styles.checkboxChecked : {}]}>
-                    {value && <Ionicons name="checkmark" size={16} color="#ffffff" />}
-                  </View>
-                  <Text style={styles.termsText}>
-                    I agree to the challenge rules and understand that the entry fee will be collected from my wallet
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
-            {errors.acceptTerms && (
-              <Text style={styles.errorText}>{errors.acceptTerms.message}</Text>
-            )}
-          </View>
-        </View>
-        
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
-            onPress={handleSubmit(onSubmit)}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#ffffff" size="small" />
-            ) : (
-              <Text style={styles.submitButtonText}>Join Challenge</Text>
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.cancelButton}
-            onPress={() => router.back()}
-            disabled={isSubmitting}
-          >
-            <Text style={styles.cancelButtonText}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
+  if (!challenge) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Challenge not found.</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    );
+  }
+
+  return (
+    <>
+      <Stack.Screen
+        options={{
+          title: "Join Challenge",
+          headerTitleStyle: { fontWeight: "600" },
+        }}
+      />
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}>
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.formContainer}>
+            <View style={styles.challengeInfo}>
+              <Text style={styles.challengeTitle}>{challenge.title}</Text>
+              <Text style={styles.challengeType}>
+                {challenge.challenge_type}
+              </Text>
+              <Text style={styles.entryFee}>
+                Entry Fee:{" "}
+                <Text style={styles.feeAmount}>
+                  {formatMoney(challenge.money_per_participant)}
+                </Text>
+              </Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Your Username</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your username"
+                value={username}
+                onChangeText={setUsername}
+                autoCapitalize="none"
+                maxLength={50}
+              />
+              <Text style={styles.inputHint}>
+                This will be displayed to other participants
+              </Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Description (optional)</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Tell something about yourself or your goal for this challenge"
+                value={description}
+                onChangeText={setDescription}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                maxLength={200}
+              />
+              <Text style={styles.inputHint}>
+                {description.length}/200 characters
+              </Text>
+            </View>
+
+            <View style={styles.disclaimer}>
+              <Text style={styles.disclaimerText}>
+                By joining this challenge, you agree to deposit{" "}
+                {formatMoney(challenge.money_per_participant)} into the
+                challenge pool. This amount will be deducted from your wallet
+                when you submit.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleJoinChallenge}
+              disabled={isSubmitting || !isConnected}>
+              {isSubmitting ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  Join Challenge for{" "}
+                  {formatMoney(challenge.money_per_participant)}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {!isConnected && (
+              <Text style={styles.connectWalletText}>
+                Please connect your wallet first to join the challenge.
+              </Text>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
+  },
+  scrollView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f9fafb",
   },
-  content: {
+  errorContainer: {
     flex: 1,
-    padding: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f9fafb",
+    padding: 20,
   },
-  header: {
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1f2937',
+  errorText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#ef4444",
     marginBottom: 16,
   },
-  challengeInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+  backButton: {
+    backgroundColor: "#4f46e5",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
   },
-  challengeName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    flex: 1,
-  },
-  badgeContainer: {
-    backgroundColor: '#ede9fe',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  challengeTypeBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6d28d9',
-  },
-  entryFeeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#eff6ff',
-    borderRadius: 12,
-    padding: 12,
-  },
-  entryFeeText: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginLeft: 8,
-  },
-  entryFeeAmount: {
-    fontWeight: '700',
-    color: '#1d4ed8',
+  backButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
   },
   formContainer: {
-    backgroundColor: '#ffffff',
+    padding: 20,
+  },
+  challengeInfo: {
+    backgroundColor: "#ffffff",
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
+    marginBottom: 20,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
     elevation: 2,
   },
-  formGroup: {
-    marginBottom: 16,
+  challengeTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
   },
-  label: {
+  challengeType: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+    color: "#4f46e5",
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  entryFee: {
+    fontSize: 14,
+    color: "#4b5563",
+  },
+  feeAmount: {
+    fontWeight: "600",
+    color: "#059669",
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1f2937",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: "#d1d5db",
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    color: '#1f2937',
+    color: "#1f2937",
   },
   textArea: {
-    backgroundColor: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#1f2937',
-    height: 100,
+    minHeight: 100,
+    paddingTop: 12,
   },
-  inputError: {
-    borderColor: '#ef4444',
-  },
-  errorText: {
+  inputHint: {
     fontSize: 12,
-    color: '#ef4444',
+    color: "#6b7280",
     marginTop: 4,
   },
-  termsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+  disclaimer: {
+    backgroundColor: "#eff6ff",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 24,
   },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 4,
-    marginRight: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  checkboxChecked: {
-    backgroundColor: '#6366f1',
-    borderColor: '#6366f1',
-  },
-  termsText: {
+  disclaimerText: {
     fontSize: 14,
-    color: '#4b5563',
-    flex: 1,
+    color: "#1e40af",
     lineHeight: 20,
   },
-  buttonContainer: {
-    marginTop: 'auto',
-  },
   submitButton: {
-    backgroundColor: '#6366f1',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    shadowColor: '#6366f1',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#a5b4fc',
+    backgroundColor: "#4f46e5",
+    borderRadius: 8,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 16,
   },
   submitButtonText: {
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: '600',
-    color: '#ffffff',
+    fontWeight: "600",
   },
-  cancelButton: {
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+  connectWalletText: {
+    fontSize: 14,
+    color: "#ef4444",
+    textAlign: "center",
   },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6b7280',
-  },
-}); 
+});

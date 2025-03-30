@@ -17,6 +17,18 @@ import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Connection, PublicKey, Keypair } from "@solana/web3.js";
+import {
+  getProvider,
+  getProgram,
+  initializeChallenge,
+  ChallengeType,
+} from "../services/contractService";
+import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import * as crypto from "crypto";
+import * as contractService from "../services/contractService";
+import { useWallet } from "../contexts/WalletContext";
+import { useConnection } from "../hooks/useConnection";
 
 // Define the schema
 const challengeFormSchema = z.object({
@@ -24,7 +36,7 @@ const challengeFormSchema = z.object({
   description: z
     .string()
     .min(10, { message: "Description must be at least 10 characters" }),
-  challenge_type: z.enum(["GoogleFit", "GitHub", "Votebased"]),
+  challenge_type: z.nativeEnum(ChallengeType),
   steps_per_day: z
     .number()
     .min(0, { message: "Steps per day must be at least 1000" })
@@ -50,6 +62,8 @@ export default function CreateChallengeScreen() {
   const [privateParticipant, setPrivateParticipant] = useState("");
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const { program, userPublickey } = useWallet();
+  const connection = useConnection();
 
   const {
     control,
@@ -62,7 +76,7 @@ export default function CreateChallengeScreen() {
     defaultValues: {
       title: "",
       description: "",
-      challenge_type: "GoogleFit",
+      challenge_type: ChallengeType.GOOGLE_FIT,
       steps_per_day: 10000,
       commits_per_day: 3,
       start_time: new Date(),
@@ -96,30 +110,53 @@ export default function CreateChallengeScreen() {
     setValue("private_participants", newParticipants);
   };
 
-  const onSubmit = (data: ChallengeFormValues) => {
+  const onSubmit = async (data: ChallengeFormValues) => {
     setIsSubmitting(true);
 
-    // Mock submission - would connect to Solana in a real app
-    setTimeout(() => {
-      // Prepare challenge data based on type
-      const challengeData = {
-        ...data,
-        challenge_data:
-          data.challenge_type === "GoogleFit"
-            ? { steps_per_day: data.steps_per_day }
-            : data.challenge_type === "GitHub"
-            ? { commits_per_day: data.commits_per_day }
-            : {},
-      };
+    try {
+      // Generate a random challenge ID
+      const challengeId = crypto.randomBytes(4).readUInt32LE(0);
 
-      console.log("Form submitted:", challengeData);
+      // Define mint address (this should be your token's mint address)
+      const mint = new PublicKey("zXrV5XQLxvjFmmPGPF5hARLokViUE33KEg7rDBtqfuT"); // JKCOIN on devnet
+
+      // Initialize challenge on the blockchain
+      const txs = await contractService.initializeChallenge(
+        program,
+        challengeId,
+        data.challenge_type,
+        data.start_time,
+        data.end_time,
+        data.money_per_participant,
+        data.is_private,
+        data.private_participants || [],
+        mint,
+        userPublickey,
+        data.title,
+        data.description,
+        data.steps_per_day,
+        data.commits_per_day
+      );
+
+      // Wait for confirmation
+      await connection.confirmTransaction(txs, "confirmed");
+
+      console.log("Challenge created with ID:", challengeId);
+
       setIsSubmitting(false);
       Alert.alert(
         "Challenge Created!",
-        "Your challenge has been successfully created.",
+        "Your challenge has been successfully created on the blockchain.",
         [{ text: "OK", onPress: () => router.replace("/challenges") }]
       );
-    }, 1500);
+    } catch (error) {
+      console.error("Error creating challenge:", error);
+      setIsSubmitting(false);
+      Alert.alert(
+        "Error",
+        "Failed to create challenge. Please try again later."
+      );
+    }
   };
 
   return (
@@ -190,18 +227,25 @@ export default function CreateChallengeScreen() {
               <TouchableOpacity
                 style={[
                   styles.typeButton,
-                  challengeType === "GoogleFit" && styles.typeButtonActive,
+                  challengeType === ChallengeType.GOOGLE_FIT &&
+                    styles.typeButtonActive,
                 ]}
-                onPress={() => setValue("challenge_type", "GoogleFit")}>
+                onPress={() =>
+                  setValue("challenge_type", ChallengeType.GOOGLE_FIT)
+                }>
                 <Ionicons
                   name="fitness-outline"
                   size={24}
-                  color={challengeType === "GoogleFit" ? "#ffffff" : "#4f46e5"}
+                  color={
+                    challengeType === ChallengeType.GOOGLE_FIT
+                      ? "#ffffff"
+                      : "#4f46e5"
+                  }
                 />
                 <Text
                   style={[
                     styles.typeButtonText,
-                    challengeType === "GoogleFit" &&
+                    challengeType === ChallengeType.GOOGLE_FIT &&
                       styles.typeButtonTextActive,
                   ]}>
                   GoogleFit
@@ -211,18 +255,26 @@ export default function CreateChallengeScreen() {
               <TouchableOpacity
                 style={[
                   styles.typeButton,
-                  challengeType === "GitHub" && styles.typeButtonActive,
+                  challengeType === ChallengeType.GITHUB &&
+                    styles.typeButtonActive,
                 ]}
-                onPress={() => setValue("challenge_type", "GitHub")}>
+                onPress={() =>
+                  setValue("challenge_type", ChallengeType.GITHUB)
+                }>
                 <Ionicons
                   name="logo-github"
                   size={24}
-                  color={challengeType === "GitHub" ? "#ffffff" : "#4f46e5"}
+                  color={
+                    challengeType === ChallengeType.GITHUB
+                      ? "#ffffff"
+                      : "#4f46e5"
+                  }
                 />
                 <Text
                   style={[
                     styles.typeButtonText,
-                    challengeType === "GitHub" && styles.typeButtonTextActive,
+                    challengeType === ChallengeType.GITHUB &&
+                      styles.typeButtonTextActive,
                   ]}>
                   GitHub
                 </Text>
@@ -231,18 +283,25 @@ export default function CreateChallengeScreen() {
               <TouchableOpacity
                 style={[
                   styles.typeButton,
-                  challengeType === "Votebased" && styles.typeButtonActive,
+                  challengeType === ChallengeType.VOTE_BASED &&
+                    styles.typeButtonActive,
                 ]}
-                onPress={() => setValue("challenge_type", "Votebased")}>
+                onPress={() =>
+                  setValue("challenge_type", ChallengeType.VOTE_BASED)
+                }>
                 <Ionicons
                   name="thumbs-up-outline"
                   size={24}
-                  color={challengeType === "Votebased" ? "#ffffff" : "#4f46e5"}
+                  color={
+                    challengeType === ChallengeType.VOTE_BASED
+                      ? "#ffffff"
+                      : "#4f46e5"
+                  }
                 />
                 <Text
                   style={[
                     styles.typeButtonText,
-                    challengeType === "Votebased" &&
+                    challengeType === ChallengeType.VOTE_BASED &&
                       styles.typeButtonTextActive,
                   ]}>
                   Votebased
@@ -367,7 +426,7 @@ export default function CreateChallengeScreen() {
             )}
           </View>
 
-          {challengeType === "GoogleFit" && (
+          {challengeType === ChallengeType.GOOGLE_FIT && (
             <View style={styles.formGroup}>
               <Text style={styles.label}>Steps/Day</Text>
               <Controller
@@ -395,7 +454,7 @@ export default function CreateChallengeScreen() {
             </View>
           )}
 
-          {challengeType === "GitHub" && (
+          {challengeType === ChallengeType.GITHUB && (
             <View style={styles.formGroup}>
               <Text style={styles.label}>Commits/Day</Text>
               <Controller
