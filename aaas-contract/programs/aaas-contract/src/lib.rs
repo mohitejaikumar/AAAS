@@ -47,8 +47,8 @@ pub mod aaas_contract {
         challenge_account.challenge_id = challenge_id;
         challenge_account.challenge_information = ChallengeInformation {
             challenge_type,
-            challenge_name
-            challenge_description: String::new(),
+            challenge_name,
+            challenge_description,
         };
         challenge_account.start_time = start_time;
         challenge_account.end_time = end_time;
