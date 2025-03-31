@@ -3,7 +3,7 @@ use anchor_spl::token_interface::{
     transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked,
 };
 
-declare_id!("9BojoNnqcLQ74aBpw7zg76WQRPAac5RwgMcUeeC54R1x");
+declare_id!("2qZ14Js1pzXRRDC2CWLYeRCNx7Lge6sEzFmoRSsZz1Cj");
 
 #[program]
 pub mod aaas_contract {
