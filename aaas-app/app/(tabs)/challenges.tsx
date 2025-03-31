@@ -117,9 +117,10 @@ export default function ChallengesScreen() {
     if (!challenge.is_private) return true;
     if (!userPublickey) return false;
 
-    // Check if private_group exists before trying to use includes
+    // Check if private_group exists and has items before trying to use includes
     return (
-      challenge.private_group &&
+      Array.isArray(challenge.private_group) &&
+      challenge.private_group.length > 0 &&
       challenge.private_group.includes(userPublickey.toString())
     );
   };

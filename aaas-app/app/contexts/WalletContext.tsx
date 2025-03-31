@@ -76,18 +76,28 @@ export function WalletProvider({ children }: { children: ReactNode }) {
             }));
 
         console.log(authorizationResult);
-        const publicKey = new PublicKey(
-          toUint8Array(authorizationResult.accounts[0].address)
-        );
-        console.log(publicKey.toString());
-        setStoredAuthToken(authorizationResult.auth_token);
-        setUserPublickey(publicKey);
-        setIsConnecting(() => false);
-        setIsConnected(() => true);
+        if (
+          authorizationResult &&
+          authorizationResult.accounts &&
+          authorizationResult.accounts.length > 0
+        ) {
+          const publicKey = new PublicKey(
+            toUint8Array(authorizationResult.accounts[0].address)
+          );
+          console.log(publicKey.toString());
+          setStoredAuthToken(authorizationResult.auth_token);
+          setUserPublickey(publicKey);
+          setIsConnecting(() => false);
+          setIsConnected(() => true);
+        } else {
+          console.error("No accounts found in authorization result");
+          setIsConnecting(() => false);
+        }
 
         return await handleAuthorizationResult(authorizationResult);
       } catch (error) {
         console.log(error);
+        setIsConnecting(() => false);
       }
     },
     [authorization, handleAuthorizationResult]

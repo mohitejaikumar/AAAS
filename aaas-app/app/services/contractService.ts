@@ -258,9 +258,9 @@ export const formatChallengeData = (challenge: any) => {
       account.moneyPerParticipant.toNumber() / 1_000_000_000,
     treasury_account: account.treasuryAccount.toString(),
     is_private: account.isPrivate,
-    private_group: account.privateGroup.map((pubkey: PublicKey) =>
-      pubkey.toString()
-    ),
+    private_group: Array.isArray(account.privateGroup)
+      ? account.privateGroup.map((pubkey: PublicKey) => pubkey.toString())
+      : [],
   };
 };
 

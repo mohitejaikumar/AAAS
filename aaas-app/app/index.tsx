@@ -1,5 +1,4 @@
 import "./pollyfilles";
-
 import {
   Text,
   View,
@@ -8,7 +7,6 @@ import {
   Image,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useWallet } from "./contexts/WalletContext";
@@ -16,7 +14,6 @@ import "expo-router/entry";
 
 export default function WalletConnectionScreen() {
   const { isConnecting, isConnected, connectWallet } = useWallet();
-  const router = useRouter();
 
   const handleConnectWallet = async () => {
     try {
