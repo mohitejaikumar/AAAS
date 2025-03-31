@@ -21,6 +21,8 @@ pub mod aaas_contract {
         context: Context<InitializeChallenge>,
         challenge_id: u64,
         challenge_type: ChallengeType,
+        challenge_name: String,
+        challenge_description: String,
         start_time: i64,
         end_time: i64,
         money_per_participant: u64,
@@ -45,7 +47,7 @@ pub mod aaas_contract {
         challenge_account.challenge_id = challenge_id;
         challenge_account.challenge_information = ChallengeInformation {
             challenge_type,
-            challenge_name: String::new(),
+            challenge_name
             challenge_description: String::new(),
         };
         challenge_account.start_time = start_time;

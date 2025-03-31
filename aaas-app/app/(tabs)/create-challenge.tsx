@@ -19,7 +19,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { PublicKey } from "@solana/web3.js";
 import { ChallengeType } from "../services/contractService";
-import * as crypto from "crypto";
+import * as Crypto from "expo-crypto";
 import * as contractService from "../services/contractService";
 import { useWallet } from "../contexts/WalletContext";
 import { useConnection } from "../hooks/useConnection";
@@ -100,7 +100,7 @@ export default function CreateChallengeScreen() {
 
   const removePrivateParticipant = (index: number) => {
     const newParticipants = [...privateParticipants];
-    newParticipants.splice(index, 1);
+    // newParticipants.splice(index, 1);
     setValue("private_participants", newParticipants);
   };
 
@@ -109,7 +109,7 @@ export default function CreateChallengeScreen() {
 
     try {
       // Generate a random challenge ID
-      const challengeId = crypto.randomBytes(4).readUInt32LE(0);
+      const challengeId = Crypto.getRandomValues(new Uint8Array(1))[0];
 
       // Define mint address (this should be your token's mint address)
       const mint = new PublicKey("zXrV5XQLxvjFmmPGPF5hARLokViUE33KEg7rDBtqfuT"); // JKCOIN on devnet
@@ -131,6 +131,7 @@ export default function CreateChallengeScreen() {
         data.steps_per_day,
         data.commits_per_day
       );
+      console.log(txs);
 
       // Wait for confirmation
       await connection.confirmTransaction(txs, "confirmed");
