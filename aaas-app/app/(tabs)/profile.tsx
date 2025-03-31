@@ -6,97 +6,196 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useWallet } from "../contexts/WalletContext";
+import { CountdownTimer } from "../components/CountdownTimer";
+import { useAaasContract } from "../hooks/useAaasContract";
+import * as Clipboard from "expo-clipboard";
+import * as contractService from "../services/contractService";
 
-// Mock user data
-const USER_DATA = {
-  pubkey: "5Yd8...4Ch9",
-  name: "Alex",
-  totalChallengesJoined: 7,
-  totalChallengesCompleted: 5,
-  totalRewardsEarned: 485,
-  totalLost: 120,
-  coinsWonVoting: 75,
-};
-
-// Mock challenges data
-const MY_CHALLENGES = [
-  {
-    id: "1",
-    title: "Weekly Steps Challenge",
-    challenge_type: "GoogleFit",
-    status: "active",
-    progress: 32500,
-    progressTarget: 50000,
-    progressUnit: "steps",
-    end_time: "2023-06-07T23:59:59Z",
-    reward: 0,
-  },
-  {
-    id: "2",
-    title: "Open Source Contribution",
-    challenge_type: "GitHub",
-    status: "active",
-    progress: 2,
-    progressTarget: 3,
-    progressUnit: "PRs",
-    end_time: "2023-06-30T23:59:59Z",
-    reward: 0,
-  },
-  {
-    id: "3",
-    title: "Morning Run",
-    challenge_type: "GoogleFit",
-    status: "completed",
-    progress: 15,
-    progressTarget: 15,
-    progressUnit: "days",
-    end_time: "2023-05-15T23:59:59Z",
-    reward: 120,
-  },
-  {
-    id: "4",
-    title: "Code Documentation",
-    challenge_type: "GitHub",
-    status: "completed",
-    progress: 5,
-    progressTarget: 5,
-    progressUnit: "files",
-    end_time: "2023-05-20T23:59:59Z",
-    reward: 150,
-  },
-  {
-    id: "5",
-    title: "UI Design Challenge",
-    challenge_type: "Votebased",
-    status: "completed",
-    votes: {
-      positive: 18,
-      negative: 3,
-    },
-    end_time: "2023-05-10T23:59:59Z",
-    reward: 215,
-  },
-];
+// Interface for user challenge data
+interface UserChallenge {
+  id: string;
+  title: string;
+  challenge_type: string;
+  status: "not_started" | "active" | "completed";
+  progress?: number;
+  progressTarget?: number;
+  progressUnit?: string;
+  start_time: string;
+  end_time: string;
+  reward: number;
+  votes?: {
+    positive: number;
+    negative: number;
+  };
+}
 
 export default function ProfileScreen() {
-  const [user, setUser] = useState(USER_DATA);
-  const [myChallenges] = useState(MY_CHALLENGES);
+  const [user, setUser] = useState({
+    pubkey: "",
+    name: "User",
+    totalChallengesJoined: 0,
+    totalChallengesCompleted: 0,
+    totalRewardsEarned: 0,
+    totalLost: 0,
+    coinsWonVoting: 0,
+  });
+  const [myChallenges, setMyChallenges] = useState<UserChallenge[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const { userPublickey } = useWallet();
+  const { userPublickey, program } = useWallet();
+  const { fetchChallenges } = useAaasContract();
+
+  const copyAddressToClipboard = async () => {
+    if (userPublickey) {
+      await Clipboard.setStringAsync(userPublickey.toString());
+      Alert.alert("Copied", "Wallet address copied to clipboard");
+    }
+  };
+
+  const truncateAddress = (address: string) => {
+    if (!address) return "";
+    if (address.length <= 11) return address;
+    return `${address.substring(0, 5)}...${address.substring(
+      address.length - 4
+    )}`;
+  };
+
+  // Function to load user challenges
+  const loadUserChallenges = async () => {
+    try {
+      setIsLoading(true);
+      if (!program || !userPublickey) {
+        setMyChallenges([]);
+        return;
+      }
+
+      // Get all challenges
+      const allChallenges = await fetchChallenges();
+
+      // Filter challenges to find the ones the user has joined
+      const userChallenges: UserChallenge[] = [];
+      let totalRewards = 0;
+      let completedChallenges = 0;
+
+      for (const challenge of allChallenges) {
+        try {
+          // For each challenge, check if the user has joined
+          const challengeId = parseInt(challenge.id);
+          const challengeAccount = await contractService.getChallengeAccountPDA(
+            challengeId
+          );
+          const userChallengeAccount =
+            await contractService.getUserChallengeAccountPDA(
+              userPublickey,
+              challengeAccount
+            );
+
+          // Try to fetch the user challenge account - if it exists, the user has joined
+          const userChallengeData =
+            await program.account.userChallengeAccount.fetch(
+              userChallengeAccount
+            );
+
+          if (userChallengeData) {
+            const now = new Date();
+            const endTime = new Date(challenge.end_time);
+            const startTime = new Date(challenge.start_time);
+
+            let status: "not_started" | "active" | "completed";
+            if (now > endTime) {
+              status = "completed";
+            } else if (now < startTime) {
+              status = "not_started";
+            } else {
+              status = "active";
+            }
+
+            let reward = 0;
+
+            // If challenge is completed and user completed it, add the reward
+            if (
+              status === "completed" &&
+              userChallengeData.isChallengeCompleted
+            ) {
+              reward = challenge.money_per_participant;
+              totalRewards += reward;
+              completedChallenges += 1;
+            }
+
+            userChallenges.push({
+              id: challenge.id,
+              title: challenge.title,
+              challenge_type: challenge.challenge_type,
+              status: status,
+              start_time: challenge.start_time,
+              end_time: challenge.end_time,
+              reward: reward,
+              // Add progress data based on challenge type
+              ...(challenge.challenge_type === "GoogleFit" && {
+                progress: userChallengeData.score
+                  ? userChallengeData.score.toNumber()
+                  : 0,
+                progressTarget: 50000, // Example target
+                progressUnit: "steps",
+              }),
+              ...(challenge.challenge_type === "GitHub" && {
+                progress: userChallengeData.score
+                  ? userChallengeData.score.toNumber()
+                  : 0,
+                progressTarget: 3, // Example target
+                progressUnit: "PRs",
+              }),
+              ...(challenge.challenge_type === "Votebased" && {
+                votes: {
+                  positive: userChallengeData.voteInPositive
+                    ? userChallengeData.voteInPositive.toNumber()
+                    : 0,
+                  negative: userChallengeData.voteInNegative
+                    ? userChallengeData.voteInNegative.toNumber()
+                    : 0,
+                },
+              }),
+            });
+          }
+        } catch (error) {
+          // User hasn't joined this challenge, so we skip it
+          continue;
+        }
+      }
+
+      setMyChallenges(userChallenges);
+      setUser((prev) => ({
+        ...prev,
+        pubkey: userPublickey.toString(),
+        totalChallengesJoined: userChallenges.length,
+        totalChallengesCompleted: completedChallenges,
+        totalRewardsEarned: totalRewards,
+      }));
+    } catch (error) {
+      // console.error("Error loading user challenges:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setUser((prev) => {
-      return {
+    if (userPublickey && program) {
+      loadUserChallenges();
+    } else {
+      setUser((prev) => ({
         ...prev,
         pubkey: userPublickey?.toString() ?? "",
-      };
-    });
-  }, [userPublickey]);
+      }));
+      setIsLoading(false);
+    }
+  }, [userPublickey, program]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -122,11 +221,7 @@ export default function ProfileScreen() {
     }
   };
 
-  const renderChallengeItem = ({
-    item,
-  }: {
-    item: (typeof MY_CHALLENGES)[0];
-  }) => (
+  const renderChallengeItem = ({ item }: { item: UserChallenge }) => (
     <TouchableOpacity
       style={styles.challengeCard}
       onPress={() => navigateToChallenge(item.id)}
@@ -141,29 +236,44 @@ export default function ProfileScreen() {
             styles.statusBadge,
             {
               backgroundColor:
-                item.status === "completed" ? "#d1fae5" : "#f0f9ff",
+                item.status === "completed"
+                  ? "#d1fae5"
+                  : item.status === "active"
+                  ? "#f0f9ff"
+                  : "#f5f3ff",
             },
           ]}>
           <Text
             style={[
               styles.statusText,
-              { color: item.status === "completed" ? "#059669" : "#3b82f6" },
+              {
+                color:
+                  item.status === "completed"
+                    ? "#059669"
+                    : item.status === "active"
+                    ? "#3b82f6"
+                    : "#7c3aed",
+              },
             ]}>
-            {item.status === "completed" ? "Completed" : "Active"}
+            {item.status === "completed"
+              ? "Completed"
+              : item.status === "active"
+              ? "Active"
+              : "Not Started"}
           </Text>
         </View>
       </View>
 
       <Text style={styles.challengeTitle}>{item.title}</Text>
 
-      {item.status === "active" && "progress" in item && (
+      {item.status === "active" && item.progress !== undefined && (
         <View style={styles.progressContainer}>
           <View style={styles.progressInfo}>
             <Text style={styles.progressText}>
               {item.progress} / {item.progressTarget} {item.progressUnit}
             </Text>
             <Text style={styles.progressPercentage}>
-              {Math.round((item.progress / item.progressTarget) * 100)}%
+              {Math.round((item.progress / (item.progressTarget || 1)) * 100)}%
             </Text>
           </View>
           <View style={styles.progressBarBackground}>
@@ -173,7 +283,9 @@ export default function ProfileScreen() {
                 {
                   width: `${Math.min(
                     100,
-                    Math.round((item.progress / item.progressTarget) * 100)
+                    Math.round(
+                      (item.progress / (item.progressTarget || 1)) * 100
+                    )
                   )}%`,
                 },
               ]}
@@ -182,7 +294,7 @@ export default function ProfileScreen() {
         </View>
       )}
 
-      {"votes" in item && (
+      {item.votes && (
         <View style={styles.votesContainer}>
           <View style={styles.voteItem}>
             <Ionicons name="thumbs-up" size={16} color="#059669" />
@@ -200,9 +312,22 @@ export default function ProfileScreen() {
       )}
 
       <View style={styles.challengeFooter}>
-        <Text style={styles.endDateText}>
-          Ended: {formatDate(item.end_time)}
-        </Text>
+        {item.status === "not_started" ? (
+          <Text style={styles.endDateText}>
+            Starts: {formatDate(item.start_time)}
+          </Text>
+        ) : (
+          <Text style={styles.endDateText}>
+            {item.status === "active" ? "Ends: " : "Ended: "}
+            {formatDate(item.end_time)}
+          </Text>
+        )}
+        {item.status === "active" && (
+          <CountdownTimer endTime={item.end_time} compact={true} />
+        )}
+        {item.status === "not_started" && (
+          <CountdownTimer endTime={item.start_time} compact={true} />
+        )}
         {item.reward > 0 && (
           <Text style={styles.rewardText}>+{item.reward} SOL</Text>
         )}
@@ -220,7 +345,16 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.nameContainer}>
               <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.walletAddress}>{user.pubkey}</Text>
+              <View style={styles.addressContainer}>
+                <Text style={styles.walletAddress}>
+                  {truncateAddress(user.pubkey)}
+                </Text>
+                <TouchableOpacity
+                  onPress={copyAddressToClipboard}
+                  style={styles.copyButton}>
+                  <Ionicons name="copy-outline" size={16} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
@@ -237,19 +371,40 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{user.coinsWonVoting}</Text>
-            <Text style={styles.statLabel}>Voting Rewards</Text>
+            <Text style={styles.statValue}>
+              {user.totalChallengesCompleted}
+            </Text>
+            <Text style={styles.statLabel}>Completed</Text>
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>My Challenges</Text>
-          <FlatList
-            data={myChallenges}
-            renderItem={renderChallengeItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-          />
+          {isLoading ? (
+            <ActivityIndicator
+              size="large"
+              color="#6366f1"
+              style={styles.loader}
+            />
+          ) : myChallenges.length > 0 ? (
+            <FlatList
+              data={myChallenges}
+              renderItem={renderChallengeItem}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+            />
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>
+                No challenges joined yet
+              </Text>
+              <TouchableOpacity
+                style={styles.browseButton}
+                onPress={() => router.push("/(tabs)/challenges")}>
+                <Text style={styles.browseButtonText}>Browse Challenges</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -287,6 +442,7 @@ const styles = StyleSheet.create({
   },
   nameContainer: {
     marginLeft: 16,
+    flex: 1,
   },
   userName: {
     fontSize: 20,
@@ -294,9 +450,17 @@ const styles = StyleSheet.create({
     color: "#1f2937",
     marginBottom: 4,
   },
+  addressContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   walletAddress: {
     fontSize: 14,
     color: "#6b7280",
+  },
+  copyButton: {
+    marginLeft: 8,
+    padding: 4,
   },
   statsContainer: {
     flexDirection: "row",
@@ -340,6 +504,35 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#1f2937",
     marginBottom: 16,
+  },
+  loader: {
+    marginTop: 20,
+  },
+  emptyState: {
+    alignItems: "center",
+    padding: 40,
+    backgroundColor: "#ffffff",
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: "#6b7280",
+    marginBottom: 16,
+  },
+  browseButton: {
+    backgroundColor: "#6366f1",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  browseButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
   },
   challengeCard: {
     backgroundColor: "#ffffff",
@@ -428,6 +621,8 @@ const styles = StyleSheet.create({
   challengeFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 8,
   },
   endDateText: {
     fontSize: 14,

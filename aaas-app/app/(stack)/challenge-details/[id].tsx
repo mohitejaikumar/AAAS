@@ -8,18 +8,15 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  Image,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useWallet } from "../../contexts/WalletContext";
 import { useAaasContract } from "../../hooks/useAaasContract";
 import * as contractService from "../../services/contractService";
-import { PublicKey } from "@solana/web3.js";
-
-// Default mint address for SOL
-const DEFAULT_MINT = new PublicKey(
-  "So11111111111111111111111111111111111111112"
-);
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { CountdownTimer } from "../../components/CountdownTimer";
 
 // Challenge status based on dates
 enum ChallengeStatus {
@@ -347,20 +344,34 @@ export default function ChallengeDetailsScreen() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}>
           <View style={styles.headerSection}>
-            <View style={styles.challengeTypeContainer}>
-              {getChallengeTypeIcon(challenge.challenge_type)}
-              <Text style={styles.challengeType}>
-                {challenge.challenge_type}
-              </Text>
-              {challenge.is_private && (
-                <View style={styles.privateLabel}>
-                  <Ionicons name="lock-closed" size={14} color="#6b7280" />
-                  <Text style={styles.privateText}>Private</Text>
+            <View style={styles.headerContent}>
+              <View style={styles.titleWrapper}>
+                <View style={styles.typeContainer}>
+                  {getChallengeTypeIcon(challenge.challenge_type)}
+                  <Text style={styles.challengeType}>
+                    {challenge.challenge_type}
+                  </Text>
+                  {challenge.is_private && (
+                    <View style={styles.privateLabel}>
+                      <Ionicons name="lock-closed" size={14} color="#6b7280" />
+                      <Text style={styles.privateText}>Private</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.challengeTitle} numberOfLines={2}>
+                  {challenge.title}
+                </Text>
+              </View>
+
+              {status !== ChallengeStatus.COMPLETED && (
+                <View style={styles.timerContainer}>
+                  <CountdownTimer
+                    endTime={challenge.end_time}
+                    textStyle={styles.timerText}
+                  />
                 </View>
               )}
             </View>
-
-            <Text style={styles.title}>{challenge.title}</Text>
 
             <View
               style={[
@@ -432,13 +443,13 @@ export default function ChallengeDetailsScreen() {
               <View>
                 <Text style={styles.poolLabel}>Reward Pool</Text>
                 <Text style={styles.poolAmount}>
-                  {challenge.money_pool.toFixed(2)} SOL
+                  {challenge.money_pool / LAMPORTS_PER_SOL} JKCOIN
                 </Text>
               </View>
               <View>
                 <Text style={styles.entryLabel}>Entry Fee</Text>
                 <Text style={styles.entryAmount}>
-                  {challenge.money_per_participant.toFixed(2)} SOL
+                  {challenge.money_per_participant / LAMPORTS_PER_SOL} JKCOIN
                 </Text>
               </View>
             </View>
@@ -594,7 +605,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
-  challengeTypeContainer: {
+  headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 12,
+  },
+  titleWrapper: {
+    flex: 1,
+    marginRight: 12,
+  },
+  typeContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 8,
@@ -619,11 +640,10 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     marginLeft: 4,
   },
-  title: {
+  challengeTitle: {
     fontSize: 24,
     fontWeight: "700",
     color: "#111827",
-    marginBottom: 12,
   },
   statusBadge: {
     alignSelf: "flex-start",
@@ -764,5 +784,17 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     textAlign: "center",
     marginTop: 8,
+  },
+  timerContainer: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 16,
+    alignSelf: "flex-start",
+    marginTop: 4,
+  },
+  timerText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

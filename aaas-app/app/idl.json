@@ -200,6 +200,14 @@
           }
         },
         {
+          "name": "challenge_name",
+          "type": "string"
+        },
+        {
+          "name": "challenge_description",
+          "type": "string"
+        },
+        {
           "name": "start_time",
           "type": "i64"
         },

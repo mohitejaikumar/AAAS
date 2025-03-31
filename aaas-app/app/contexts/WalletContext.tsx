@@ -12,7 +12,11 @@ import {
   transact,
   Web3MobileWallet,
 } from "@solana-mobile/mobile-wallet-adapter-protocol-web3js";
-import { PublicKey, Transaction } from "@solana/web3.js";
+import {
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import { AuthorizationResult } from "@solana-mobile/mobile-wallet-adapter-protocol";
 import { toUint8Array } from "js-base64";
 import { useConnection } from "../hooks/useConnection";
@@ -33,7 +37,12 @@ interface WalletContextType {
   dappWallet: Web3MobileWallet | null;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
-  signAndSendTransaction: (transaction: Transaction) => Promise<string>;
+  signAndSendTransaction: (
+    instruction: TransactionInstruction
+  ) => Promise<string>;
+  signAndSendAllTransaction: (
+    instructions: TransactionInstruction[]
+  ) => Promise<string>;
   anchorWallet: anchor.Wallet;
   program: anchor.Program<AaasContract> | null;
 }
@@ -90,13 +99,13 @@ export function WalletProvider({ children }: { children: ReactNode }) {
           setIsConnecting(() => false);
           setIsConnected(() => true);
         } else {
-          console.error("No accounts found in authorization result");
+          // console.error("No accounts found in authorization result");
           setIsConnecting(() => false);
         }
 
         return await handleAuthorizationResult(authorizationResult);
       } catch (error) {
-        console.log(error);
+        
         setIsConnecting(() => false);
       }
     },
@@ -124,7 +133,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
   // Sign and send transaction
   const signAndSendTransaction = async (
-    transaction: Transaction
+    instruction: TransactionInstruction
   ): Promise<string> => {
     if (!dappWallet || !userPublickey) {
       throw new Error("Wallet not connected");
@@ -134,11 +143,17 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       // Get recent blockhash
       const { blockhash, lastValidBlockHeight } =
         await connection.getLatestBlockhash();
+
+      const transaction = new Transaction().add(instruction);
       transaction.recentBlockhash = blockhash;
       transaction.feePayer = userPublickey;
 
       // Sign transaction
       const signedTransaction = await transact(async (wallet) => {
+        const authorizationResult = await wallet.authorize({
+          cluster: "devnet",
+          identity: APP_IDENTITY,
+        });
         const signedTransactions = await wallet.signTransactions({
           transactions: [transaction],
         });
@@ -149,6 +164,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const signature = await connection.sendRawTransaction(
         signedTransaction.serialize()
       );
+      console.log("Signature:", signature);
 
       // Confirm transaction
       await connection.confirmTransaction({
@@ -159,7 +175,56 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       return signature;
     } catch (error) {
-      console.error("Error signing and sending transaction:", error);
+      // console.error("Error signing and sending transaction:", error);
+      throw error;
+    }
+  };
+
+  // Sign and send transaction
+  const signAndSendAllTransaction = async (
+    instructions: TransactionInstruction[]
+  ): Promise<string> => {
+    if (!dappWallet || !userPublickey) {
+      throw new Error("Wallet not connected");
+    }
+
+    try {
+      // Get recent blockhash
+      const { blockhash, lastValidBlockHeight } =
+        await connection.getLatestBlockhash();
+
+      const transaction = new Transaction().add(...instructions);
+      transaction.recentBlockhash = blockhash;
+      transaction.feePayer = userPublickey;
+
+      // Sign transaction
+      const signedTransaction = await transact(async (wallet) => {
+        const authorizationResult = await wallet.authorize({
+          cluster: "devnet",
+          identity: APP_IDENTITY,
+        });
+        const signedTransactions = await wallet.signTransactions({
+          transactions: [transaction],
+        });
+        return signedTransactions[0] as Transaction;
+      });
+
+      // Send transaction
+      const signature = await connection.sendRawTransaction(
+        signedTransaction.serialize()
+      );
+      console.log("Signature:", signature);
+
+      // Confirm transaction
+      await connection.confirmTransaction({
+        blockhash,
+        lastValidBlockHeight,
+        signature,
+      });
+
+      return signature;
+    } catch (error) {
+      // console.error("Error signing and sending transaction:", error);
       throw error;
     }
   };
@@ -170,6 +235,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         cluster: "devnet",
         identity: APP_IDENTITY,
       });
+
+      transaction.feePayer = userPublickey;
 
       const signedTransactions = await wallet.signTransactions({
         transactions: [transaction],
@@ -183,6 +250,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
       const authorizationResult = await wallet.authorize({
         cluster: "devnet",
         identity: APP_IDENTITY,
+      });
+
+      transactions.forEach((transaction) => {
+        transaction.feePayer = userPublickey;
       });
 
       const signedTransactions = await wallet.signTransactions({
@@ -231,6 +302,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         signAndSendTransaction,
         anchorWallet,
         program,
+        signAndSendAllTransaction,
       }}>
       {children}
     </WalletContext.Provider>

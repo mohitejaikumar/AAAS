@@ -9,6 +9,7 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -23,6 +24,7 @@ import * as Crypto from "expo-crypto";
 import * as contractService from "../services/contractService";
 import { useWallet } from "../contexts/WalletContext";
 import { useConnection } from "../hooks/useConnection";
+import { MINT_OF_TOKEN_TO_PARTICIPATE_IN_CHALLENGE } from "../utils";
 
 // Define the schema
 const challengeFormSchema = z.object({
@@ -43,7 +45,7 @@ const challengeFormSchema = z.object({
   end_time: z.date(),
   money_per_participant: z
     .number()
-    .min(1, { message: "Amount must be at least 1 SOL" }),
+    .min(1, { message: "Amount must be at least 1 LAMPORTS" }),
   is_private: z.boolean(),
   private_participants: z.array(z.string()).optional(),
 });
@@ -56,7 +58,9 @@ export default function CreateChallengeScreen() {
   const [privateParticipant, setPrivateParticipant] = useState("");
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const { program, userPublickey } = useWallet();
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const { program, userPublickey, signAndSendTransaction } = useWallet();
   const connection = useConnection();
 
   const {
@@ -112,7 +116,7 @@ export default function CreateChallengeScreen() {
       const challengeId = Crypto.getRandomValues(new Uint8Array(1))[0];
 
       // Define mint address (this should be your token's mint address)
-      const mint = new PublicKey("zXrV5XQLxvjFmmPGPF5hARLokViUE33KEg7rDBtqfuT"); // JKCOIN on devnet
+      const mint = new PublicKey(MINT_OF_TOKEN_TO_PARTICIPATE_IN_CHALLENGE); // JKCOIN on devnet
 
       // Initialize challenge on the blockchain
       const txs = await contractService.initializeChallenge(
@@ -133,8 +137,10 @@ export default function CreateChallengeScreen() {
       );
       console.log(txs);
 
+      const signature = await signAndSendTransaction(txs);
+
       // Wait for confirmation
-      await connection.confirmTransaction(txs, "confirmed");
+      await connection.confirmTransaction(signature, "confirmed");
 
       console.log("Challenge created with ID:", challengeId);
 
@@ -145,7 +151,7 @@ export default function CreateChallengeScreen() {
         [{ text: "OK", onPress: () => router.replace("/challenges") }]
       );
     } catch (error) {
-      console.error("Error creating challenge:", error);
+      // console.error("Error creating challenge:", error);
       setIsSubmitting(false);
       Alert.alert(
         "Error",
@@ -323,6 +329,10 @@ export default function CreateChallengeScreen() {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
+                    })}{" "}
+                    {value.toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </Text>
                   <Ionicons name="calendar-outline" size={24} color="#6b7280" />
@@ -330,12 +340,41 @@ export default function CreateChallengeScreen() {
               )}
             />
 
-            {showStartDatePicker && (
+            {showStartDatePicker && Platform.OS === "ios" && (
+              <View style={styles.iosPickerContainer}>
+                <View style={styles.iosPickerHeader}>
+                  <TouchableOpacity
+                    onPress={() => setShowStartDatePicker(false)}>
+                    <Text style={styles.iosPickerDoneBtn}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <Controller
+                  control={control}
+                  name="start_time"
+                  render={({ field: { onChange, value } }) => (
+                    <DateTimePicker
+                      testID="startDatePicker"
+                      value={value}
+                      mode="datetime"
+                      display="spinner"
+                      minimumDate={new Date()}
+                      onChange={(event, selectedDate) => {
+                        const currentDate = selectedDate || value;
+                        onChange(currentDate);
+                      }}
+                    />
+                  )}
+                />
+              </View>
+            )}
+
+            {showStartDatePicker && Platform.OS === "android" && (
               <Controller
                 control={control}
                 name="start_time"
                 render={({ field: { onChange, value } }) => (
                   <DateTimePicker
+                    testID="startDatePicker"
                     value={value}
                     mode="date"
                     display="default"
@@ -343,7 +382,39 @@ export default function CreateChallengeScreen() {
                     onChange={(event, selectedDate) => {
                       setShowStartDatePicker(false);
                       if (selectedDate) {
-                        onChange(selectedDate);
+                        // Create a new date with the selected date but keep the original time
+                        const newDate = new Date(selectedDate);
+                        newDate.setHours(value.getHours());
+                        newDate.setMinutes(value.getMinutes());
+                        onChange(newDate);
+                        // Show the time picker after date selection
+                        setShowStartTimePicker(true);
+                      }
+                    }}
+                  />
+                )}
+              />
+            )}
+
+            {showStartTimePicker && Platform.OS === "android" && (
+              <Controller
+                control={control}
+                name="start_time"
+                render={({ field: { onChange, value } }) => (
+                  <DateTimePicker
+                    testID="startTimePicker"
+                    value={value}
+                    mode="time"
+                    is24Hour={false}
+                    display="default"
+                    onChange={(event, selectedTime) => {
+                      setShowStartTimePicker(false);
+                      if (selectedTime) {
+                        // Create a new date with the original date but selected time
+                        const newDateTime = new Date(value);
+                        newDateTime.setHours(selectedTime.getHours());
+                        newDateTime.setMinutes(selectedTime.getMinutes());
+                        onChange(newDateTime);
                       }
                     }}
                   />
@@ -366,6 +437,10 @@ export default function CreateChallengeScreen() {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
+                    })}{" "}
+                    {value.toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </Text>
                   <Ionicons name="calendar-outline" size={24} color="#6b7280" />
@@ -373,12 +448,40 @@ export default function CreateChallengeScreen() {
               )}
             />
 
-            {showEndDatePicker && (
+            {showEndDatePicker && Platform.OS === "ios" && (
+              <View style={styles.iosPickerContainer}>
+                <View style={styles.iosPickerHeader}>
+                  <TouchableOpacity onPress={() => setShowEndDatePicker(false)}>
+                    <Text style={styles.iosPickerDoneBtn}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <Controller
+                  control={control}
+                  name="end_time"
+                  render={({ field: { onChange, value } }) => (
+                    <DateTimePicker
+                      testID="endDatePicker"
+                      value={value}
+                      mode="datetime"
+                      display="spinner"
+                      minimumDate={new Date()}
+                      onChange={(event, selectedDate) => {
+                        const currentDate = selectedDate || value;
+                        onChange(currentDate);
+                      }}
+                    />
+                  )}
+                />
+              </View>
+            )}
+
+            {showEndDatePicker && Platform.OS === "android" && (
               <Controller
                 control={control}
                 name="end_time"
                 render={({ field: { onChange, value } }) => (
                   <DateTimePicker
+                    testID="endDatePicker"
                     value={value}
                     mode="date"
                     display="default"
@@ -386,7 +489,39 @@ export default function CreateChallengeScreen() {
                     onChange={(event, selectedDate) => {
                       setShowEndDatePicker(false);
                       if (selectedDate) {
-                        onChange(selectedDate);
+                        // Create a new date with the selected date but keep the original time
+                        const newDate = new Date(selectedDate);
+                        newDate.setHours(value.getHours());
+                        newDate.setMinutes(value.getMinutes());
+                        onChange(newDate);
+                        // Show the time picker after date selection
+                        setShowEndTimePicker(true);
+                      }
+                    }}
+                  />
+                )}
+              />
+            )}
+
+            {showEndTimePicker && Platform.OS === "android" && (
+              <Controller
+                control={control}
+                name="end_time"
+                render={({ field: { onChange, value } }) => (
+                  <DateTimePicker
+                    testID="endTimePicker"
+                    value={value}
+                    mode="time"
+                    is24Hour={false}
+                    display="default"
+                    onChange={(event, selectedTime) => {
+                      setShowEndTimePicker(false);
+                      if (selectedTime) {
+                        // Create a new date with the original date but selected time
+                        const newDateTime = new Date(value);
+                        newDateTime.setHours(selectedTime.getHours());
+                        newDateTime.setMinutes(selectedTime.getMinutes());
+                        onChange(newDateTime);
                       }
                     }}
                   />
@@ -396,7 +531,7 @@ export default function CreateChallengeScreen() {
           </View>
 
           <View style={styles.formGroup}>
-            <Text style={styles.label}>Money per Participant (SOL)</Text>
+            <Text style={styles.label}>Money per Participant (LAMPORTS)</Text>
             <Controller
               control={control}
               name="money_per_participant"
@@ -769,5 +904,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#ffffff",
     marginLeft: 8,
+  },
+  iosPickerContainer: {
+    backgroundColor: "white",
+    borderTopWidth: 1,
+    borderTopColor: "#e5e7eb",
+  },
+  iosPickerHeader: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  iosPickerDoneBtn: {
+    color: "#6366f1",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

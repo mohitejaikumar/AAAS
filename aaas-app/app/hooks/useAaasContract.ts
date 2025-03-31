@@ -1,11 +1,9 @@
 import { PublicKey } from "@solana/web3.js";
 import { useWallet } from "../contexts/WalletContext";
 import * as contractService from "../services/contractService";
-
+import { MINT_OF_TOKEN_TO_PARTICIPATE_IN_CHALLENGE } from "../utils";
 // Default SOL mint address
-const DEFAULT_MINT = new PublicKey(
-  "So11111111111111111111111111111111111111112"
-);
+const DEFAULT_MINT = new PublicKey(MINT_OF_TOKEN_TO_PARTICIPATE_IN_CHALLENGE);
 
 export function useAaasContract() {
   const {
@@ -25,7 +23,7 @@ export function useAaasContract() {
       const challengeAccounts = await contractService.getAllChallenges(program);
       return challengeAccounts.map(contractService.formatChallengeData);
     } catch (error) {
-      console.error("Error fetching challenges:", error);
+      // console.error("Error fetching challenges:", error);
       throw error;
     }
   };
@@ -52,7 +50,7 @@ export function useAaasContract() {
 
       return await signAndSendTransaction(transaction);
     } catch (error) {
-      console.error("Error joining challenge:", error);
+      // console.error("Error joining challenge:", error);
       throw error;
     }
   };
@@ -79,7 +77,7 @@ export function useAaasContract() {
 
       return await signAndSendTransaction(transaction);
     } catch (error) {
-      console.error("Error voting for challenge:", error);
+      // console.error("Error voting for challenge:", error);
       throw error;
     }
   };
@@ -100,7 +98,7 @@ export function useAaasContract() {
 
       return await signAndSendTransaction(transaction);
     } catch (error) {
-      console.error("Error claiming challenge:", error);
+      // console.error("Error claiming challenge:", error);
       throw error;
     }
   };

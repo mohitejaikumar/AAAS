@@ -280,6 +280,14 @@ export type AaasContract = {
           };
         },
         {
+          name: "challengeName";
+          type: "string";
+        },
+        {
+          name: "challengeDescription";
+          type: "string";
+        },
+        {
           name: "startTime";
           type: "i64";
         },

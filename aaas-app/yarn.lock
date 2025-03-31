@@ -4496,6 +4496,11 @@ expo-blur@~14.0.3:
   resolved "https://registry.npmjs.org/expo-blur/-/expo-blur-14.0.3.tgz"
   integrity sha512-BL3xnqBJbYm3Hg9t/HjNjdeY7N/q8eK5tsLYxswWG1yElISWZmMvrXYekl7XaVCPfyFyz8vQeaxd7q74ZY3Wrw==
 
+expo-clipboard@^7.0.1:
+  version "7.0.1"
+  resolved "https://registry.npmjs.org/expo-clipboard/-/expo-clipboard-7.0.1.tgz"
+  integrity sha512-rqYk0+WoqitPcPKxmMxSpLonX1E5Ije3LBYfnYMbH3xU5Gr8EAH9QnOWOi4BgahUPvcot6nbFEnx+DqARrmxKQ==
+
 expo-constants@*, expo-constants@~17.0.5, expo-constants@~17.0.8:
   version "17.0.8"
   resolved "https://registry.npmjs.org/expo-constants/-/expo-constants-17.0.8.tgz"

@@ -14,6 +14,8 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useWallet } from "../contexts/WalletContext";
 import { useAaasContract } from "../hooks/useAaasContract";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { CountdownTimer } from "../components/CountdownTimer";
 
 // Define Challenge interface
 interface Challenge {
@@ -107,7 +109,7 @@ export default function ChallengesScreen() {
         day: "numeric",
       });
     } catch (error) {
-      console.error("Error formatting date:", error);
+      // console.error("Error formatting date:", error);
       return "Invalid date";
     }
   };
@@ -182,13 +184,18 @@ export default function ChallengesScreen() {
         )}
       </View>
 
-      <View style={styles.moneyInfo}>
-        <Text style={styles.poolAmount}>
-          {item.money_pool.toFixed(2)} SOL pool
-        </Text>
-        <Text style={styles.perParticipantAmount}>
-          {item.money_per_participant.toFixed(2)} SOL per entry
-        </Text>
+      <View style={styles.challengeFooter}>
+        <View style={styles.moneyInfoContainer}>
+          <Text style={styles.poolAmount}>
+            {item.money_pool / LAMPORTS_PER_SOL} JKCOIN pool
+          </Text>
+          <Text style={styles.perParticipantAmount}>
+            {item.money_per_participant / LAMPORTS_PER_SOL} JKCOIN per entry
+          </Text>
+        </View>
+        <View style={styles.timerContainer}>
+          <CountdownTimer endTime={item.end_time} />
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -370,13 +377,18 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     marginLeft: 6,
   },
-  moneyInfo: {
+  challengeFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: "#f3f4f6",
+  },
+  moneyInfoContainer: {
+    flex: 1,
+    paddingRight: 8,
   },
   poolAmount: {
     fontSize: 16,
@@ -386,6 +398,9 @@ const styles = StyleSheet.create({
   perParticipantAmount: {
     fontSize: 14,
     color: "#6b7280",
+  },
+  timerContainer: {
+    alignItems: "flex-end",
   },
   emptyContainer: {
     alignItems: "center",

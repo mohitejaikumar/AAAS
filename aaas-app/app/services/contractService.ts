@@ -1,5 +1,10 @@
-import { Program, AnchorProvider, BN, Wallet } from "@coral-xyz/anchor";
-import { Connection, PublicKey } from "@solana/web3.js";
+import {
+  Connection,
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
+import { Program, Wallet, BN, AnchorProvider } from "@coral-xyz/anchor";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import idl from "../idl.json";
 import { AaasContract } from "../aaas-contract";
@@ -106,9 +111,10 @@ export const getTreasuryAccountPDA = async (challengeId: number) => {
 export const getAllChallenges = async (program: Program<AaasContract>) => {
   try {
     const challengeAccounts = await program.account.challengeAccount.all();
+    console.log(challengeAccounts);
     return challengeAccounts;
   } catch (error) {
-    console.error("Error fetching challenges:", error);
+    // console.error("Error fetching challenges:", error);
     throw error;
   }
 };
@@ -133,11 +139,11 @@ export const joinChallenge = async (
         treasuryAccount: treasuryAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .transaction();
+      .instruction();
 
     return tx;
   } catch (error) {
-    console.error("Error joining challenge:", error);
+    // console.error("Error joining challenge:", error);
     throw error;
   }
 };
@@ -168,11 +174,11 @@ export const voteForChallenge = async (
       .accounts({
         signer: voterPublicKey,
       })
-      .transaction();
+      .instruction();
 
     return tx;
   } catch (error) {
-    console.error("Error voting for challenge:", error);
+    // console.error("Error voting for challenge:", error);
     throw error;
   }
 };
@@ -196,11 +202,11 @@ export const claimChallenge = async (
         treasuryAccount: treasuryAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .transaction();
+      .instruction();
 
     return tx;
   } catch (error) {
-    console.error("Error claiming challenge:", error);
+    // console.error("Error claiming challenge:", error);
     throw error;
   }
 };
@@ -223,7 +229,7 @@ export const getUserChallengeStatus = async (
     );
     return userChallengeData;
   } catch (error) {
-    console.error("Error getting user challenge status:", error);
+    // console.error("Error getting user challenge status:", error);
     throw error;
   }
 };
@@ -264,6 +270,47 @@ export const formatChallengeData = (challenge: any) => {
   };
 };
 
+// Send a transaction instruction
+export const sendTransaction = async (
+  instruction: TransactionInstruction,
+  program: Program<AaasContract>
+) => {
+  try {
+    const provider = program.provider as AnchorProvider;
+
+    // Get recent blockhash
+    const { blockhash, lastValidBlockHeight } =
+      await provider.connection.getLatestBlockhash();
+
+    // Create transaction
+    const transaction = new Transaction().add(instruction);
+    transaction.recentBlockhash = blockhash;
+    transaction.feePayer = provider.wallet.publicKey;
+
+    // Sign transaction
+    const signedTransaction = await provider.wallet.signTransaction(
+      transaction
+    );
+
+    // Send transaction
+    const signature = await provider.connection.sendRawTransaction(
+      signedTransaction.serialize()
+    );
+
+    // Confirm transaction
+    await provider.connection.confirmTransaction({
+      blockhash,
+      lastValidBlockHeight,
+      signature,
+    });
+
+    return signature;
+  } catch (error) {
+    // console.error("Error sending transaction:", error);
+    throw error;
+  }
+};
+
 // Initialize a new challenge
 export const initializeChallenge = async (
   program: Program<AaasContract>,
@@ -287,9 +334,7 @@ export const initializeChallenge = async (
     const endTimeUnix = Math.floor(endTime.getTime() / 1000);
 
     // Convert moneyPerParticipant from SOL to lamports
-    const moneyPerParticipantLamports = new BN(
-      moneyPerParticipant * 1_000_000_000
-    );
+    const moneyPerParticipantLamports = new BN(moneyPerParticipant);
 
     // Convert challenge type to the format expected by the contract
     let challengeTypeObj;
@@ -320,7 +365,9 @@ export const initializeChallenge = async (
     const tx = await program.methods
       .initializeChallenge(
         new BN(challengeId),
-        challengeInformation,
+        challengeInformation.challengeType,
+        challengeInformation.challengeName,
+        challengeInformation.challengeDescription,
         new BN(startTimeUnix),
         new BN(endTimeUnix),
         moneyPerParticipantLamports,
@@ -332,11 +379,11 @@ export const initializeChallenge = async (
         mint,
         tokenProgram: TOKEN_PROGRAM_ID,
       })
-      .rpc();
+      .instruction();
 
     return tx;
   } catch (error) {
-    console.error("Error initializing challenge:", error);
+    // console.error("Error initializing challenge:", error);
     throw error;
   }
 };

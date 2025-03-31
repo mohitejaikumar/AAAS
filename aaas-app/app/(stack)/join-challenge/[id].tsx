@@ -15,7 +15,7 @@ import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useWallet } from "../../contexts/WalletContext";
 import { useAaasContract } from "../../hooks/useAaasContract";
 import * as contractService from "../../services/contractService";
-import { PublicKey } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 
 export default function JoinChallengeScreen() {
   const { id } = useLocalSearchParams();
@@ -47,6 +47,8 @@ export default function JoinChallengeScreen() {
         challengeAccountPDA
       );
 
+      console.log("challengeData", challengeData);
+
       // Format challenge data for display
       const formattedChallenge = {
         id: challengeData.challengeId.toString(),
@@ -61,9 +63,9 @@ export default function JoinChallengeScreen() {
         end_time: new Date(challengeData.endTime * 1000),
         total_participants: challengeData.totalParticipants.toNumber(),
         total_votes: challengeData.totalVotes.toNumber(),
-        money_pool: challengeData.moneyPool.toNumber() / 1_000_000_000, // Convert from lamports to SOL
+        money_pool: challengeData.moneyPool.toNumber() / LAMPORTS_PER_SOL, // Convert from lamports to SOL
         money_per_participant:
-          challengeData.moneyPerParticipant.toNumber() / 1_000_000_000,
+          challengeData.moneyPerParticipant.toNumber() / LAMPORTS_PER_SOL,
         is_private: challengeData.isPrivate,
         challengeInformation: challengeData.challengeInformation,
       };
@@ -165,7 +167,7 @@ export default function JoinChallengeScreen() {
 
   // Format money amount
   const formatMoney = (amount: number) => {
-    return amount.toFixed(2) + " SOL";
+    return amount / LAMPORTS_PER_SOL + " JKCOIN";
   };
 
   if (isLoading) {
