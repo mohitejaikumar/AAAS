@@ -184,6 +184,8 @@ describe("aaas-contract", () => {
       .initializeChallenge(
         challengeId,
         { googleFit: { steps: new BN(10000) } },
+        "Lets fit",
+        "do run 10000 steps",
         startTime,
         endTime,
         moneyPerParticipant,
@@ -216,7 +218,8 @@ describe("aaas-contract", () => {
     const tx = await program.methods
       .joinChallenge(
         challengeId,
-        "Jaikumar Mohite"
+        "Jaikumar Mohite",
+        "I will try my best"
       )
       .accounts({
         signer: user1.publicKey,
@@ -283,6 +286,8 @@ describe("aaas-contract", () => {
       .initializeChallenge(
         voteBasedChallengeId,
         { voteBased: {} },
+        "Lets complete my homework",
+        "I will do homework for 10 hours",
         startTime,
         endTime,
         moneyPerParticipant,
@@ -349,7 +354,9 @@ describe("aaas-contract", () => {
     const initTx = await program.methods
       .initializeChallenge(
         privateGroupChallengeId,
-        { googleFit: { steps: new BN(5000) } },
+        { voteBased: {} },
+        "Lets complete my homework",
+        "I will do homework for 10 hours",
         startTime,
         endTime,
         moneyPerParticipant,
@@ -391,7 +398,8 @@ describe("aaas-contract", () => {
     const joinTx = await program.methods
       .joinChallenge(
         privateGroupChallengeId,
-        "User One"
+        "User One",
+        "I will try my best"
       )
       .accounts({
         signer: user1.publicKey,
@@ -412,7 +420,8 @@ describe("aaas-contract", () => {
       await program.methods
         .joinChallenge(
           privateGroupChallengeId,
-          "User Two"
+          "User Two",
+          "I will try my best"
         )
         .accounts({
           signer: user2.publicKey,
@@ -441,6 +450,8 @@ describe("aaas-contract", () => {
       .initializeChallenge(
         multiUserChallengeId,
         { googleFit: { steps: new BN(7500) } },
+        "Lets fit",
+        "do run 7500 steps",
         startTime,
         endTime,
         moneyPerParticipant,
@@ -470,7 +481,8 @@ describe("aaas-contract", () => {
     await program.methods
       .joinChallenge(
         multiUserChallengeId,
-        "User One"
+        "User One",
+        "I will try my best"
       )
       .accounts({
         signer: user1.publicKey,
@@ -488,7 +500,8 @@ describe("aaas-contract", () => {
     await program.methods
       .joinChallenge(
         multiUserChallengeId,
-        "User Two"
+        "User Two",
+        "I will try my best"
       )
       .accounts({
         signer: user2.publicKey,
@@ -518,6 +531,8 @@ describe("aaas-contract", () => {
       .initializeChallenge(
         voteBasedChallengeId,
         { voteBased: {} },
+        "Read book",
+        "I will read book for 2 hours",
         startTime,
         endTime,
         moneyPerParticipant,
@@ -564,7 +579,8 @@ describe("aaas-contract", () => {
     await program.methods
       .joinChallenge(
         voteBasedChallengeId,
-        "Vote User One"
+        "Vote User One",
+        "I will try my best"
       )
       .accounts({
         signer: user1.publicKey,
@@ -582,7 +598,8 @@ describe("aaas-contract", () => {
     await program.methods
       .joinChallenge(
         voteBasedChallengeId,
-        "Vote User Two"
+        "Vote User Two",
+        "I will try my best"
       )
       .accounts({
         signer: user2.publicKey,
@@ -656,6 +673,8 @@ describe("aaas-contract", () => {
         .initializeChallenge(
           invalidChallengeId,
           { googleFit: { steps: new BN(10000) } },
+          "Lets fit",
+          "do run 10000 steps",
           pastStartTime,
           futureEndTime,
           moneyPerParticipant,
@@ -684,6 +703,8 @@ describe("aaas-contract", () => {
         .initializeChallenge(
           invalidChallengeId,
           { googleFit: { steps: new BN(10000) } },
+          "Lets fit",
+          "do run 10000 steps",
           futureStartTime,
           earlierEndTime,
           moneyPerParticipant,
@@ -709,6 +730,8 @@ describe("aaas-contract", () => {
         .initializeChallenge(
           invalidChallengeId,
           { googleFit: { steps: new BN(10000) } },
+          "Lets fit",
+          "do run 10000 steps",
           startTime,
           endTime,
           moneyPerParticipant,
@@ -738,6 +761,8 @@ describe("aaas-contract", () => {
       .initializeChallenge(
         doubleJoinChallengeId,
         { googleFit: { steps: new BN(5000) } },
+        "Lets fit",
+        "do run 5000 steps",
         startTime,
         endTime,
         moneyPerParticipant,
@@ -767,7 +792,8 @@ describe("aaas-contract", () => {
     await program.methods
       .joinChallenge(
         doubleJoinChallengeId,
-        "User One"
+        "User One",
+        "I will try my best"
       )
       .accounts({
         signer: user1.publicKey,
@@ -783,7 +809,8 @@ describe("aaas-contract", () => {
       await program.methods
         .joinChallenge(
           doubleJoinChallengeId,
-          "User One Again"
+          "User One Again",
+          "I will try my best"
         )
         .accounts({
           signer: user1.publicKey,

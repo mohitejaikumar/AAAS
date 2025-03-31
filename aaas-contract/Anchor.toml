@@ -10,11 +10,13 @@ skip-lint = false
 [programs.localnet]
 aaas_contract = "9BojoNnqcLQ74aBpw7zg76WQRPAac5RwgMcUeeC54R1x"
 
+
+
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "devnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
