@@ -64,7 +64,7 @@ const AppTabs = () => {
         }}
       />
       <Tabs.Screen
-        name="challenges/index"
+        name="(tabs)/challenges"
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="trophy" size={size} color={color} />
@@ -73,7 +73,7 @@ const AppTabs = () => {
         }}
       />
       <Tabs.Screen
-        name="create/index"
+        name="(tabs)/create"
         options={{
           tabBarIcon: ({ color, size }) => {
             return <Ionicons name="add-circle" size={size} color={color} />;
@@ -82,7 +82,7 @@ const AppTabs = () => {
         }}
       />
       <Tabs.Screen
-        name="profile/index"
+        name="(tabs)/profile"
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
@@ -91,7 +91,7 @@ const AppTabs = () => {
         }}
       />
       <Tabs.Screen
-        name="voting/index"
+        name="(tabs)/voting"
         options={{
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="checkmark-circle" size={size} color={color} />
