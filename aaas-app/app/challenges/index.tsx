@@ -72,10 +72,8 @@ export default function ChallengesScreen() {
 
   // Load challenges when component mounts
   useEffect(() => {
-    if (isConnected && userPublickey) {
-      loadChallenges();
-    }
-  }, [isConnected, userPublickey]);
+    loadChallenges();
+  }, []);
 
   const navigateToChallenge = (challengeId: string) => {
     router.push(`/(stack)/challenge-details/${challengeId}`);

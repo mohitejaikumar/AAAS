@@ -17,14 +17,8 @@ import { useForm, Controller } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Connection, PublicKey, Keypair } from "@solana/web3.js";
-import {
-  getProvider,
-  getProgram,
-  initializeChallenge,
-  ChallengeType,
-} from "../services/contractService";
-import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
+import { ChallengeType } from "../services/contractService";
 import * as crypto from "crypto";
 import * as contractService from "../services/contractService";
 import { useWallet } from "../contexts/WalletContext";

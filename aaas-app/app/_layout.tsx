@@ -1,22 +1,29 @@
-import React, { useEffect } from 'react';
-import { Stack, Tabs, Slot } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Text, View, useWindowDimensions, Platform } from 'react-native';
+import React, { useEffect } from "react";
+import { Stack, Tabs, Slot } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Text, View, useWindowDimensions, Platform } from "react-native";
 
-import { WalletProvider, useWallet } from './contexts/WalletContext';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import { WalletProvider, useWallet } from "./contexts/WalletContext";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 const AppTabs = () => {
   const { isConnected } = useWallet();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
 
-  console.log('Wallet connection state:', isConnected); // Debug line
-  console.log('Is mobile:', isMobile, 'Width:', width, 'Platform:', Platform.OS); // Debug platform info
+  console.log("Wallet connection state:", isConnected); // Debug line
+  console.log(
+    "Is mobile:",
+    isMobile,
+    "Width:",
+    width,
+    "Platform:",
+    Platform.OS
+  ); // Debug platform info
 
   useEffect(() => {
-    console.log('App tabs rendered, create tab should be visible');
+    console.log("App tabs rendered, create tab should be visible");
   }, []);
 
   // If wallet is not connected, don't render tabs
@@ -27,30 +34,29 @@ const AppTabs = () => {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#6366f1',
-        tabBarInactiveTintColor: '#9ca3af',
+        tabBarActiveTintColor: "#6366f1",
+        tabBarInactiveTintColor: "#9ca3af",
         tabBarStyle: {
-          backgroundColor: '#ffffff',
+          backgroundColor: "#ffffff",
           borderTopWidth: 1,
-          borderTopColor: '#f3f4f6',
+          borderTopColor: "#f3f4f6",
           height: 60,
           paddingBottom: 10,
-          display: 'flex', // Ensure tab bar is always displayed
+          display: "flex", // Ensure tab bar is always displayed
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '500',
-          display: 'flex', // Ensure labels are always displayed
+          fontWeight: "500",
+          display: "flex", // Ensure labels are always displayed
         },
         headerStyle: {
-          backgroundColor: '#ffffff',
+          backgroundColor: "#ffffff",
         },
         headerTitleStyle: {
-          fontWeight: '600',
-          color: '#1f2937',
+          fontWeight: "600",
+          color: "#1f2937",
         },
-      }}
-    >
+      }}>
       <Tabs.Screen
         name="index"
         options={{
@@ -63,25 +69,7 @@ const AppTabs = () => {
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="trophy" size={size} color={color} />
           ),
-          title: 'Challenges',
-        }}
-      />
-      <Tabs.Screen
-        name="profile/index"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
-          title: 'Profile',
-        }}
-      />
-      <Tabs.Screen
-        name="voting/index"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="checkmark-circle" size={size} color={color} />
-          ),
-          title: 'Voting',
+          title: "Challenges",
         }}
       />
       <Tabs.Screen
@@ -90,10 +78,28 @@ const AppTabs = () => {
           tabBarIcon: ({ color, size }) => {
             return <Ionicons name="add-circle" size={size} color={color} />;
           },
-          title: 'Create',
-          tabBarShowLabel: true
+          title: "Create",
         }}
       />
+      <Tabs.Screen
+        name="profile/index"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+          title: "Profile",
+        }}
+      />
+      <Tabs.Screen
+        name="voting/index"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="checkmark-circle" size={size} color={color} />
+          ),
+          title: "Voting",
+        }}
+      />
+
       <Tabs.Screen
         name="(stack)"
         options={{
