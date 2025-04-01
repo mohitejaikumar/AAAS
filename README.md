@@ -18,8 +18,8 @@ Users can create algorithm challenges, vote on solutions, and interact with the 
 
 ### Features
 
-- Create and browse algorithm challenges
-- Vote on algorithm solutions
+- Create and browse challenges
+- Vote on challenges 
 - User profiles and authentication
 - Solana wallet integration
 - Mobile-first interface
