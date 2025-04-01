@@ -8,6 +8,7 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -48,6 +49,7 @@ export default function ProfileScreen() {
   });
   const [myChallenges, setMyChallenges] = useState<UserChallenge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const { userPublickey, program } = useWallet();
   const { fetchChallenges } = useAaasContract();
@@ -182,7 +184,14 @@ export default function ProfileScreen() {
       // console.error("Error loading user challenges:", error);
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  // Function to handle refresh
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadUserChallenges();
   };
 
   useEffect(() => {
@@ -199,7 +208,13 @@ export default function ProfileScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const navigateToChallenge = (challengeId: string) => {
@@ -337,7 +352,16 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#6366f1"
+            colors={["#6366f1"]}
+          />
+        }>
         <View style={styles.header}>
           <View style={styles.profileInfo}>
             <View style={styles.avatarPlaceholder}>
@@ -622,15 +646,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 12,
+    flexWrap: "wrap",
   },
   endDateText: {
     fontSize: 14,
     color: "#6b7280",
+    flexShrink: 1,
+    marginRight: 8,
+    marginBottom: 4,
   },
   rewardText: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 14,
+    fontWeight: "600",
     color: "#059669",
+    flexShrink: 0,
   },
 });

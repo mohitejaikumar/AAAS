@@ -34,6 +34,7 @@ type Challenge = {
   title: string;
   description: string;
   end_time: Date;
+  voting_end_time: Date;
   voting_reward: number;
   participants: Participant[];
 };
@@ -51,6 +52,7 @@ export default function VotingChallengeScreen() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasVoted, setHasVoted] = useState<Record<string, boolean>>({});
+  const [timeRemaining, setTimeRemaining] = useState<string>("");
 
   useEffect(() => {
     if (!program || !userPublickey) {
@@ -61,6 +63,35 @@ export default function VotingChallengeScreen() {
 
     loadChallengeData();
   }, [id, program, userPublickey]);
+
+  useEffect(() => {
+    if (!challenge) return;
+
+    // Update timer every second
+    const timer = setInterval(() => {
+      const now = new Date();
+      const votingEndTime = challenge.voting_end_time;
+
+      if (now > votingEndTime) {
+        setTimeRemaining("Voting period has ended");
+        clearInterval(timer);
+        return;
+      }
+
+      const diffMs = votingEndTime.getTime() - now.getTime();
+      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+      const diffSecs = Math.floor((diffMs % (1000 * 60)) / 1000);
+
+      setTimeRemaining(
+        `${diffHrs.toString().padStart(2, "0")}:${diffMins
+          .toString()
+          .padStart(2, "0")}:${diffSecs.toString().padStart(2, "0")}`
+      );
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [challenge]);
 
   const loadChallengeData = async () => {
     if (!program || !id) return;
@@ -145,12 +176,20 @@ export default function VotingChallengeScreen() {
         })
       );
 
+      // Calculate voting end time (challenge end time + 30 minutes)
+      const challengeEndTime = new Date(
+        challengeData.endTime.toNumber() * 1000
+      );
+      const votingEndTime = new Date(challengeEndTime);
+      votingEndTime.setMinutes(votingEndTime.getMinutes() + 30);
+
       // Format challenge data for display
       const formattedChallenge: Challenge = {
         id: challengeData.challengeId.toString(),
         title: challengeData.challengeInformation.challengeName,
         description: challengeData.challengeInformation.challengeDescription,
-        end_time: new Date(challengeData.endTime.toNumber() * 1000),
+        end_time: challengeEndTime,
+        voting_end_time: votingEndTime,
         voting_reward: 1000 / LAMPORTS_PER_SOL, // JKCOIN Fixed reward for voting
         participants: participants,
       };
@@ -177,6 +216,8 @@ export default function VotingChallengeScreen() {
       month: "short",
       day: "numeric",
       year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -195,12 +236,28 @@ export default function VotingChallengeScreen() {
     }));
   };
 
+  const isCurrentUser = (participantId: string) => {
+    return userPublickey?.toString() === participantId;
+  };
+
   const hasVotedForAll = () => {
     // If there are no participants, there's nothing to vote on
     if (challenge?.participants.length === 0) {
       return false;
     }
-    return Object.values(votes).every((vote) => vote !== null);
+
+    // Count all participants except the current user
+    const eligibleParticipants = Object.keys(votes).filter(
+      (participantId) => !isCurrentUser(participantId)
+    );
+
+    // Check if all eligible participants have votes
+    return (
+      eligibleParticipants.length > 0 &&
+      eligibleParticipants.every(
+        (participantId) => votes[participantId] !== null
+      )
+    );
   };
 
   const handleSubmitVotes = async () => {
@@ -223,8 +280,9 @@ export default function VotingChallengeScreen() {
       let transactions = [];
       // Submit each vote to the blockchain
       for (const [participantId, voteValue] of Object.entries(votes)) {
-        if (hasVoted[participantId]) {
-          continue; // Skip if already voted for this participant
+        // Skip if already voted or if it's the current user
+        if (hasVoted[participantId] || isCurrentUser(participantId)) {
+          continue;
         }
 
         if (!voteValue) continue;
@@ -256,6 +314,7 @@ export default function VotingChallengeScreen() {
         [{ text: "OK", onPress: () => router.back() }]
       );
     } catch (error) {
+      console.error("Error submitting votes:", error);
       Alert.alert("Error", "Failed to submit votes. Please try again.");
     } finally {
       setIsSubmitting(false);
@@ -289,7 +348,23 @@ export default function VotingChallengeScreen() {
           <View style={styles.deadlineContainer}>
             <Ionicons name="time-outline" size={20} color="#6b7280" />
             <Text style={styles.deadlineText}>
-              Voting ends: {formatDate(challenge.end_time)}
+              Challenge ends: {formatDate(challenge.end_time)}
+            </Text>
+          </View>
+
+          <View style={styles.deadlineContainer}>
+            <Ionicons name="hourglass-outline" size={20} color="#6b7280" />
+            <Text style={styles.deadlineText}>
+              Voting open until: {formatDate(challenge.voting_end_time)}
+            </Text>
+          </View>
+
+          <View style={styles.countdownContainer}>
+            <Ionicons name="alarm-outline" size={20} color="#4f46e5" />
+            <Text style={styles.countdownText}>
+              {timeRemaining
+                ? `Time remaining: ${timeRemaining}`
+                : "Loading timer..."}
             </Text>
           </View>
         </View>
@@ -350,6 +425,17 @@ export default function VotingChallengeScreen() {
                         color="#059669"
                       />
                       <Text style={styles.alreadyVotedText}>Already Voted</Text>
+                    </View>
+                  ) : isCurrentUser(participant.id) ? (
+                    <View style={styles.alreadyVotedMessage}>
+                      <Ionicons
+                        name="information-circle"
+                        size={18}
+                        color="#6b7280"
+                      />
+                      <Text style={styles.alreadyVotedText}>
+                        Can't vote for yourself
+                      </Text>
                     </View>
                   ) : (
                     <>
@@ -508,11 +594,15 @@ const styles = StyleSheet.create({
   deadlineContainer: {
     flexDirection: "row",
     alignItems: "center",
+    marginTop: 12,
+    flexWrap: "wrap",
   },
   deadlineText: {
     fontSize: 14,
     color: "#6b7280",
     marginLeft: 8,
+    flexShrink: 1,
+    flexWrap: "wrap",
   },
   participantsSection: {
     padding: 16,
@@ -696,5 +786,19 @@ const styles = StyleSheet.create({
   emptyStateSubText: {
     fontSize: 14,
     color: "#6b7280",
+  },
+  countdownContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 12,
+    flexWrap: "wrap",
+  },
+  countdownText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#4f46e5",
+    marginLeft: 8,
+    flexShrink: 1,
+    flexWrap: "wrap",
   },
 });

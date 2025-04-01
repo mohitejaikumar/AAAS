@@ -9,6 +9,7 @@ import {
   Alert,
   SafeAreaView,
   Image,
+  RefreshControl,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,6 +37,7 @@ export default function ChallengeDetailsScreen() {
   const [isJoining, setIsJoining] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [isClaiming, setIsClaiming] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [challenge, setChallenge] = useState<any>(null);
   const [userChallengeStatus, setUserChallengeStatus] = useState<any>(null);
   const [status, setStatus] = useState<ChallengeStatus>(ChallengeStatus.ACTIVE);
@@ -123,6 +125,7 @@ export default function ChallengeDetailsScreen() {
       );
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -175,41 +178,6 @@ export default function ChallengeDetailsScreen() {
     }
   };
 
-  // Vote for a participant
-  const handleVoteForParticipant = async (
-    participantAddress: string,
-    isCompleted: boolean
-  ) => {
-    if (!userPublickey || !challenge) return;
-
-    try {
-      setIsVoting(true);
-
-      // Call the voteForChallenge function from wallet context
-      const signature = await voteForChallenge(
-        parseInt(challenge.id, 10),
-        participantAddress,
-        isCompleted
-      );
-
-      console.log("Voted for participant with signature:", signature);
-
-      // Reload challenge details
-      await loadChallengeDetails();
-
-      Alert.alert("Success", "Your vote has been recorded!", [{ text: "OK" }]);
-    } catch (error) {
-      console.error("Error voting for participant:", error);
-      Alert.alert(
-        "Error",
-        "Failed to submit your vote. Please try again later.",
-        [{ text: "OK" }]
-      );
-    } finally {
-      setIsVoting(false);
-    }
-  };
-
   // Claim rewards
   const handleClaimReward = async () => {
     if (!userPublickey || !challenge) return;
@@ -246,6 +214,8 @@ export default function ChallengeDetailsScreen() {
       year: "numeric",
       month: "short",
       day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -286,9 +256,13 @@ export default function ChallengeDetailsScreen() {
 
   // Check if user can join
   const canUserJoin = () => {
+    // await loadChallengeDetails();
     if (!challenge || !userPublickey) return false;
     if (hasUserJoined()) return false;
-    if (status !== ChallengeStatus.ACTIVE) return false;
+
+    // Check if challenge has ended
+    const now = new Date();
+    if (now > challenge.start_time) return false;
 
     // Check if user is in private group for private challenges
     if (challenge.is_private) {
@@ -300,12 +274,44 @@ export default function ChallengeDetailsScreen() {
 
   // Check if user can claim rewards
   const canUserClaim = () => {
+    // await loadChallengeDetails();
     if (!challenge || !userPublickey || !userChallengeStatus) return false;
     if (!hasUserJoined()) return false;
     if (status !== ChallengeStatus.COMPLETED) return false;
 
-    // Check if challenge is completed by the user
+    // For vote-based challenges, check if positive votes are greater than negative votes
+    if (challenge.challenge_type === "Votebased") {
+      return (
+        userChallengeStatus.isChallengeCompleted ||
+        userChallengeStatus.voteInPositive > userChallengeStatus.voteInNegative
+      );
+    }
+
+    // For other challenge types, check if challenge is completed
     return userChallengeStatus.isChallengeCompleted;
+  };
+
+  // Check if user has lost the challenge
+  const hasUserLostChallenge = () => {
+    if (!challenge || !userPublickey || !userChallengeStatus) return false;
+    if (status !== ChallengeStatus.COMPLETED) return false;
+
+    // For vote-based challenges, check if negative votes are greater than or equal to positive votes
+    if (challenge.challenge_type === "Votebased") {
+      return (
+        !userChallengeStatus.isChallengeCompleted &&
+        userChallengeStatus.voteInNegative >= userChallengeStatus.voteInPositive
+      );
+    }
+
+    // For other challenge types, check if challenge is not completed
+    return !userChallengeStatus.isChallengeCompleted;
+  };
+
+  // Handle pull-to-refresh
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await loadChallengeDetails();
   };
 
   if (isLoading) {
@@ -342,7 +348,15 @@ export default function ChallengeDetailsScreen() {
       <SafeAreaView style={styles.container}>
         <ScrollView
           style={styles.scrollView}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={handleRefresh}
+              colors={["#4f46e5"]}
+              tintColor="#4f46e5"
+            />
+          }>
           <View style={styles.headerSection}>
             <View style={styles.headerContent}>
               <View style={styles.titleWrapper}>
@@ -443,13 +457,13 @@ export default function ChallengeDetailsScreen() {
               <View>
                 <Text style={styles.poolLabel}>Reward Pool</Text>
                 <Text style={styles.poolAmount}>
-                  {challenge.money_pool / LAMPORTS_PER_SOL} JKCOIN
+                  {challenge.money_pool} JKCOIN
                 </Text>
               </View>
               <View>
                 <Text style={styles.entryLabel}>Entry Fee</Text>
                 <Text style={styles.entryAmount}>
-                  {challenge.money_per_participant / LAMPORTS_PER_SOL} JKCOIN
+                  {challenge.money_per_participant} JKCOIN
                 </Text>
               </View>
             </View>
@@ -474,6 +488,9 @@ export default function ChallengeDetailsScreen() {
                     ]}>
                     {userChallengeStatus.isChallengeCompleted
                       ? "Completed"
+                      : // if ended then lost the challenge
+                      status === ChallengeStatus.COMPLETED
+                      ? "Lost the challenge"
                       : "In Progress"}
                   </Text>
                 </View>
@@ -542,8 +559,18 @@ export default function ChallengeDetailsScreen() {
               </Text>
             )}
 
+            {hasUserLostChallenge() && (
+              <Text style={[styles.actionHint, { color: "#ef4444" }]}>
+                {challenge.challenge_type === "Votebased" ||
+                challenge.challenge_type === "GitHub"
+                  ? "You lost the challenge. Positive votes were less than negative votes."
+                  : "You didn't complete the challenge requirements."}
+              </Text>
+            )}
+
             {hasUserJoined() &&
               !canUserClaim() &&
+              !hasUserLostChallenge() &&
               status === ChallengeStatus.COMPLETED && (
                 <Text style={styles.actionHint}>
                   You didn't complete the challenge requirements.
@@ -668,16 +695,20 @@ const styles = StyleSheet.create({
   },
   infoRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     marginBottom: 16,
   },
   infoItem: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     flex: 1,
+    minWidth: "48%",
+    marginBottom: 8,
   },
   infoTextContainer: {
     marginLeft: 8,
+    flex: 1,
   },
   infoLabel: {
     fontSize: 12,
@@ -687,6 +718,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#111827",
+    flexWrap: "wrap",
   },
   divider: {
     height: 1,

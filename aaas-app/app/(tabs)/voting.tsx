@@ -33,7 +33,11 @@ interface Challenge {
   is_private: boolean;
   private_group: string[];
   category?: string; // Optional derived from challenge_type
+  votingEndTime?: string; // Added for voting period end time
 }
+
+// Voting period duration in milliseconds (30 minutes)
+const VOTING_PERIOD_MS = 30 * 60 * 1000;
 
 export default function VotingScreen() {
   const [isLoading, setIsLoading] = useState(true);
@@ -42,26 +46,44 @@ export default function VotingScreen() {
   const { fetchChallenges } = useAaasContract();
   const router = useRouter();
 
+  // Check if a challenge is in voting period
+  const isInVotingPeriod = (challenge: Challenge) => {
+    const now = new Date().getTime();
+    const endTime = new Date(challenge.end_time).getTime();
+    const votingEndTime = endTime + VOTING_PERIOD_MS;
+
+    return now >= endTime && now <= votingEndTime;
+  };
+
   // Load voting challenges
   const loadVotingChallenges = async () => {
     try {
       setIsLoading(true);
       const allChallenges = await fetchChallenges();
 
-      // Filter only vote-based challenges
+      // Filter only vote-based challenges that are in voting period
       const filteredChallenges = allChallenges.filter(
         (challenge) =>
-          challenge.challenge_type === ChallengeType.VOTE_BASED ||
-          challenge.challenge_type === ChallengeType.GITHUB
+          (challenge.challenge_type === ChallengeType.VOTE_BASED ||
+            challenge.challenge_type === ChallengeType.GITHUB) &&
+          isInVotingPeriod(challenge)
       );
 
-      // Add category based on challenge title/description for UI display
-      const enhancedChallenges = filteredChallenges.map((challenge) => ({
-        ...challenge,
-        category: challenge.title.toLowerCase().includes("design")
-          ? "Design"
-          : "Development",
-      }));
+      // Add category and voting end time
+      const enhancedChallenges = filteredChallenges.map((challenge) => {
+        const endTime = new Date(challenge.end_time).getTime();
+        const votingEndTime = new Date(
+          endTime + VOTING_PERIOD_MS
+        ).toISOString();
+
+        return {
+          ...challenge,
+          category: challenge.title.toLowerCase().includes("design")
+            ? "Design"
+            : "Development",
+          votingEndTime,
+        };
+      });
 
       console.log(enhancedChallenges);
 
@@ -93,6 +115,13 @@ export default function VotingScreen() {
   // Load challenges when component mounts
   useEffect(() => {
     loadVotingChallenges();
+
+    // Set up timer to refresh challenges every minute to update voting period status
+    const interval = setInterval(() => {
+      loadVotingChallenges();
+    }, 60000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const navigateToVoting = (challengeId: string) => {
@@ -101,7 +130,13 @@ export default function VotingScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const renderChallengeItem = ({ item }: { item: Challenge }) => (
@@ -111,6 +146,11 @@ export default function VotingScreen() {
       activeOpacity={0.7}>
       <View style={styles.categoryBadge}>
         <Text style={styles.categoryText}>{item.category || "Challenge"}</Text>
+      </View>
+
+      <View style={styles.votingBadge}>
+        <Ionicons name="timer-outline" size={14} color="#ffffff" />
+        <Text style={styles.votingText}>Voting Period</Text>
       </View>
 
       <Text style={styles.challengeTitle}>{item.title}</Text>
@@ -132,7 +172,7 @@ export default function VotingScreen() {
         <View style={styles.statItem}>
           <Ionicons name="time-outline" size={16} color="#6b7280" />
           <CountdownTimer
-            endTime={item.end_time}
+            endTime={item.votingEndTime || item.end_time}
             showIcon={false}
             textStyle={styles.statText}
             compact={true}
@@ -164,9 +204,9 @@ export default function VotingScreen() {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="search" size={48} color="#9ca3af" />
-        <Text style={styles.emptyText}>No voting challenges found</Text>
+        <Text style={styles.emptyText}>No active voting challenges</Text>
         <Text style={styles.emptySubtext}>
-          Pull down to refresh or check back later
+          Check back soon for challenges in voting period
         </Text>
       </View>
     );
@@ -196,7 +236,7 @@ export default function VotingScreen() {
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Vote & Earn</Text>
             <Text style={styles.headerSubtitle}>
-              Vote for the best submissions and earn SOL rewards
+              Vote for the best submissions during the 30-minute voting period
             </Text>
           </View>
         }
@@ -258,6 +298,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#4b5563",
+  },
+  votingBadge: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    backgroundColor: "#ec4899",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  votingText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#ffffff",
+    marginLeft: 4,
   },
   challengeTitle: {
     fontSize: 18,

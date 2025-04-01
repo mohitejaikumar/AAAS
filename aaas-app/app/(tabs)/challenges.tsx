@@ -49,11 +49,10 @@ export default function ChallengesScreen() {
       const challengesList = await fetchChallenges();
       setChallenges(challengesList);
     } catch (error) {
-      console.error("Error loading challenges:", error);
       Alert.alert(
         "Error",
         "Failed to load challenges. Please try again later.",
-        [{ text: "OK" }]
+        [{ text: "Reload", onPress: () => loadChallenges() }]
       );
     } finally {
       setIsLoading(false);
@@ -104,13 +103,20 @@ export default function ChallengesScreen() {
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      });
+      return {
+        date: date.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        time: date.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }),
+        year: date.getFullYear(),
+      };
     } catch (error) {
-      // console.error("Error formatting date:", error);
-      return "Invalid date";
+      return { date: "Invalid", time: "date", year: "" };
     }
   };
 
@@ -145,9 +151,21 @@ export default function ChallengesScreen() {
         </View>
         {canJoinPrivateChallenge(item) ? (
           <TouchableOpacity
-            style={styles.joinButton}
-            onPress={() => handleJoinChallenge(item.id)}>
-            <Text style={styles.joinButtonText}>Join</Text>
+            style={[
+              styles.joinButton,
+              new Date(item.start_time) <= new Date() &&
+                styles.joinButtonDisabled,
+            ]}
+            onPress={() => handleJoinChallenge(item.id)}
+            disabled={new Date(item.start_time) <= new Date()}>
+            <Text
+              style={[
+                styles.joinButtonText,
+                new Date(item.start_time) <= new Date() &&
+                  styles.joinButtonTextDisabled,
+              ]}>
+              {new Date(item.start_time) <= new Date() ? "Started" : "Join"}
+            </Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.restrictedButton}>
@@ -162,39 +180,67 @@ export default function ChallengesScreen() {
       </Text>
 
       <View style={styles.challengeDetails}>
-        <View style={styles.detailItem}>
-          <Ionicons name="calendar-outline" size={16} color="#6b7280" />
-          <Text style={styles.detailText}>
-            {formatDate(item.start_time)} - {formatDate(item.end_time)}
-          </Text>
-        </View>
-
-        <View style={styles.detailItem}>
-          <Ionicons name="people-outline" size={16} color="#6b7280" />
-          <Text style={styles.detailText}>
-            {item.total_participants} Participants
-          </Text>
-        </View>
-
-        {item.challenge_type === "Votebased" && (
-          <View style={styles.detailItem}>
-            <Ionicons name="thumbs-up-outline" size={16} color="#6b7280" />
-            <Text style={styles.detailText}>{item.total_votes} Votes</Text>
+        <View style={styles.dateSection}>
+          <View style={styles.dateRow}>
+            <Text style={styles.dateLabel}>Start:</Text>
+            <View style={styles.dateChip}>
+              <Text style={styles.dateChipText}>
+                {formatDate(item.start_time).date}
+              </Text>
+            </View>
+            <Text style={styles.timeText}>
+              {formatDate(item.start_time).time}
+            </Text>
           </View>
-        )}
+          <View style={styles.dateRow}>
+            <Text style={styles.dateLabel}>End:</Text>
+            <View style={styles.dateChip}>
+              <Text style={styles.dateChipText}>
+                {formatDate(item.end_time).date}
+              </Text>
+            </View>
+            <Text style={styles.timeText}>
+              {formatDate(item.end_time).time}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Ionicons name="people-outline" size={16} color="#6b7280" />
+            <Text style={styles.statText}>
+              {item.total_participants} Participants
+            </Text>
+          </View>
+
+          {item.challenge_type === "Votebased" && (
+            <View style={styles.statItem}>
+              <Ionicons name="thumbs-up-outline" size={16} color="#6b7280" />
+              <Text style={styles.statText}>{item.total_votes} Votes</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={styles.challengeFooter}>
         <View style={styles.moneyInfoContainer}>
-          <Text style={styles.poolAmount}>
-            {item.money_pool / LAMPORTS_PER_SOL} JKCOIN pool
-          </Text>
+          <Text style={styles.poolAmount}>{item.money_pool} JKCOIN pool</Text>
           <Text style={styles.perParticipantAmount}>
-            {item.money_per_participant / LAMPORTS_PER_SOL} JKCOIN per entry
+            {item.money_per_participant} JKCOIN per entry
           </Text>
         </View>
         <View style={styles.timerContainer}>
-          <CountdownTimer endTime={item.end_time} />
+          {new Date(item.start_time) > new Date() ? (
+            <View style={styles.timerWrapper}>
+              <Text style={styles.timerLabel}>Join in:</Text>
+              <CountdownTimer endTime={item.start_time} />
+            </View>
+          ) : (
+            <View style={styles.timerWrapper}>
+              <Text style={styles.timerLabel}>Ends in:</Text>
+              <CountdownTimer endTime={item.end_time} />
+            </View>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -297,7 +343,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
   },
   typeContainer: {
     flexDirection: "row",
@@ -353,7 +399,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#111827",
-    marginBottom: 6,
+    marginBottom: 10,
   },
   challengeDescription: {
     fontSize: 14,
@@ -362,17 +408,50 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   challengeDetails: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 12,
+    flexDirection: "column",
+    marginBottom: 16,
   },
-  detailItem: {
+  dateSection: {
+    marginBottom: 10,
+  },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  dateLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4b5563",
+    width: 42,
+    marginRight: 4,
+  },
+  dateChip: {
+    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  dateChipText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#4b5563",
+  },
+  timeText: {
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  statItem: {
     flexDirection: "row",
     alignItems: "center",
     marginRight: 16,
-    marginBottom: 8,
   },
-  detailText: {
+  statText: {
     fontSize: 14,
     color: "#6b7280",
     marginLeft: 6,
@@ -402,6 +481,14 @@ const styles = StyleSheet.create({
   timerContainer: {
     alignItems: "flex-end",
   },
+  timerWrapper: {
+    alignItems: "flex-end",
+  },
+  timerLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginBottom: 4,
+  },
   emptyContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -418,5 +505,12 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
     marginTop: 8,
     textAlign: "center",
+  },
+  joinButtonDisabled: {
+    backgroundColor: "#f3f4f6",
+    borderColor: "#e5e7eb",
+  },
+  joinButtonTextDisabled: {
+    color: "#9ca3af",
   },
 });

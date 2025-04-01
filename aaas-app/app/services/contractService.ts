@@ -349,9 +349,6 @@ export const initializeChallenge = async (
     // Convert private group strings to PublicKeys
     const privateGroupPubkeys = privateGroup.map((addr) => new PublicKey(addr));
 
-    // Get PDAs
-    const treasuryAccount = await getTreasuryAccountPDA(challengeId);
-    const challengeAccount = await getChallengeAccountPDA(challengeId);
 
     // Create the challenge information object
     const challengeInformation = {
