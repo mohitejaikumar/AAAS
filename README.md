@@ -8,6 +8,11 @@ AAAS is a decentralized platform that connects algorithm creators with users who
 2. A Solana blockchain contract built with Anchor
 
 Users can create algorithm challenges, vote on solutions, and interact with the platform through a modern mobile interface that integrates with Solana's blockchain ecosystem.
+```bash
+// this should be replaced with some 100xdevs token for minting reward and USDC for joining the challenge
+MINT_OF_TOKEN_FOR_REWARD =
+  "HPuw5bXXxUj8akYkscffhM92gSu9sV7Z5PDJJmPzeNEa";
+```
 
 ## Repository Structure
 
