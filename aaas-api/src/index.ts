@@ -8,6 +8,7 @@ import type { AaasContract } from "./aaas-contract";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import dotenv from "dotenv";
 import { getOrCreateAssociatedTokenAccount, mintTo } from "@solana/spl-token";
+import * as googleFitService from "./googleFitService";
 
 dotenv.config();
 const app = express();
@@ -37,12 +38,20 @@ interface SignedRequest {
   publicKey: string;
 }
 
-// Signature verification middleware
+// Routes that don't require signature verification
+const unsecuredRoutes = ["/api/google-fit/auth", "/health"];
+
+// Modified signature verification middleware to exclude certain routes
 const verifySignature = (
   req: Request,
   res: Response,
   next: NextFunction
 ): void => {
+  // Skip verification for unsecured routes
+  if (unsecuredRoutes.includes(req.path)) {
+    return next();
+  }
+
   try {
     const { message, signature, publicKey } = req.body as SignedRequest;
 
@@ -224,6 +233,80 @@ app.get("/health", (req, res) => {
   res.send("ok");
 });
 
+// Google Fit API routes
+// Exchange auth code for tokens
+app.post("/api/google-fit/auth", async (req, res) => {
+  try {
+    const { code, user_id, redirect_uri } = req.body;
+
+    if (!code || !user_id) {
+      res
+        .status(400)
+        .json({ error: "Authorization code and user ID are required" });
+      return;
+    }
+
+    const result = await googleFitService.exchangeAuthCodeForTokens(
+      code,
+      user_id,
+      redirect_uri
+    );
+
+    if (result.success) {
+      res.status(200).json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error("Error in Google Fit auth endpoint:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to process Google Fit authorization" });
+  }
+});
+
+// Register a challenge for step tracking
+app.post("/api/google-fit/register-challenge", async (req, res) => {
+  try {
+    const { challenge_id, user_id, steps_per_day, start_time, end_time } =
+      req.body;
+
+    if (
+      !challenge_id ||
+      !user_id ||
+      !steps_per_day ||
+      !start_time ||
+      !end_time
+    ) {
+      res.status(400).json({ error: "All challenge parameters are required" });
+      return;
+    }
+
+    const result = googleFitService.registerChallenge({
+      challengeId: challenge_id,
+      userId: user_id,
+      stepsPerDay: steps_per_day,
+      startTime: start_time,
+      endTime: end_time,
+    });
+
+    if (result.success) {
+      res.status(200).json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error("Error registering challenge for step tracking:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to register challenge for step tracking" });
+  }
+});
+
+// Start the server
 app.listen(3000, () => {
   console.log("Server is running on port 3000");
+
+  // Start the scheduled job to process all Google Fit challenges
+  googleFitService.startScheduledJob(program);
 });

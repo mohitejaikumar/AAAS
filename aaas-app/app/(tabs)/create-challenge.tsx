@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ import * as contractService from "../services/contractService";
 import { useWallet } from "../contexts/WalletContext";
 import { useConnection } from "../hooks/useConnection";
 import { MINT_OF_TOKEN_TO_PARTICIPATE_IN_CHALLENGE } from "../utils";
+import * as Google from "expo-auth-session/providers/google";
 
 // Define the schema
 const challengeFormSchema = z.object({
@@ -52,6 +53,13 @@ const challengeFormSchema = z.object({
 
 type ChallengeFormValues = z.infer<typeof challengeFormSchema>;
 
+// Google Fit configuration
+const GOOGLE_FIT_CLIENT_ID =
+  "669237031928-cjknnm3bd4q4e8j7a9r6j73vp438of9b.apps.googleusercontent.com"; // Replace with your actual client ID
+const GOOGLE_FIT_REDIRECT_URI = "myapp://oauth2redirect"; // Replace with your app's redirect URI
+const GOOGLE_FIT_SCOPE =
+  "https://www.googleapis.com/auth/fitness.activity.read";
+
 export default function CreateChallengeScreen() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,8 +68,13 @@ export default function CreateChallengeScreen() {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [googleFitAuthorized, setGoogleFitAuthorized] = useState(false);
   const { program, userPublickey, signAndSendTransaction } = useWallet();
   const connection = useConnection();
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId: GOOGLE_FIT_CLIENT_ID,
+    scopes: [GOOGLE_FIT_SCOPE],
+  });
 
   const {
     control,
@@ -74,7 +87,7 @@ export default function CreateChallengeScreen() {
     defaultValues: {
       title: "",
       description: "",
-      challenge_type: ChallengeType.GOOGLE_FIT,
+      challenge_type: ChallengeType.GITHUB,
       steps_per_day: 10000,
       commits_per_day: 3,
       start_time: new Date(),
@@ -88,6 +101,105 @@ export default function CreateChallengeScreen() {
   const isPrivate = watch("is_private");
   const privateParticipants = watch("private_participants") || [];
   const challengeType = watch("challenge_type");
+
+  useEffect(() => {
+    if (challengeType === ChallengeType.GOOGLE_FIT && !googleFitAuthorized) {
+      Alert.alert(
+        "Google Fit Authorization",
+        "This challenge requires access to your Google Fit data. Would you like to authorize now?",
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Authorize",
+            onPress: () => promptAsync(),
+          },
+        ]
+      );
+    }
+  }, [challengeType]);
+
+  useEffect(() => {
+    console.log(response);
+  }, [response]);
+
+  const requestGoogleFitAuthorization = async () => {
+    try {
+      const result = await promptAsync();
+      console.log("Prompt async result:", response);
+    } catch (error) {
+      console.error("Error requesting Google Fit authorization:", error);
+      Alert.alert(
+        "Authorization Failed",
+        "Failed to request Google Fit authorization. Please try again later."
+      );
+    }
+  };
+
+  const handleRedirect = async (event) => {
+    const { url } = event;
+    console.log("Handling redirect URL:", url);
+
+    if (url && url.includes("code=")) {
+      try {
+        // Extract code properly, handling URL encoding
+        const code = decodeURIComponent(url.split("code=")[1].split("&")[0]);
+        console.log("Extracted code:", code);
+
+        // Use your actual backend URL here (not localhost for mobile)
+        const apiUrl = "http://10.0.2.2:3000/api/google-fit/auth"; // For Android emulator
+
+        console.log("Sending code to API:", apiUrl);
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            code,
+            user_id: userPublickey.toString(),
+            redirect_uri: GOOGLE_FIT_REDIRECT_URI, // Send the redirect_uri with the request
+          }),
+        });
+
+        const responseData = await response.json();
+        console.log("API response:", responseData);
+
+        if (response.ok) {
+          setGoogleFitAuthorized(true);
+          Alert.alert(
+            "Authorization Successful",
+            "Google Fit has been successfully authorized for step tracking."
+          );
+        } else {
+          Alert.alert(
+            "Authorization Failed",
+            `Failed to complete Google Fit authorization. Error: ${
+              responseData.error || "Unknown error"
+            }`
+          );
+        }
+      } catch (error) {
+        console.error("Error exchanging auth code:", error);
+        Alert.alert(
+          "Authorization Failed",
+          `Failed to complete Google Fit authorization: ${error.message}`
+        );
+      }
+    } else if (url) {
+      console.log("Redirect URL doesn't contain auth code:", url);
+      Alert.alert(
+        "Authorization Failed",
+        "Did not receive authorization code from Google. Please try again."
+      );
+    }
+  };
+
+  // useEffect(() => {
+  //   console.log(response);
+  // }, [response]);
 
   const addPrivateParticipant = () => {
     if (!privateParticipant.trim()) {
@@ -109,16 +221,30 @@ export default function CreateChallengeScreen() {
   };
 
   const onSubmit = async (data: ChallengeFormValues) => {
+    if (
+      data.challenge_type === ChallengeType.GOOGLE_FIT &&
+      !googleFitAuthorized
+    ) {
+      Alert.alert(
+        "Authorization Required",
+        "Google Fit authorization is required to create this challenge.",
+        [
+          {
+            text: "Authorize",
+            onPress: requestGoogleFitAuthorization,
+          },
+        ]
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Generate a random challenge ID
       const challengeId = Crypto.getRandomValues(new Uint8Array(1))[0];
 
-      // Define mint address (this should be your token's mint address)
       const mint = new PublicKey(MINT_OF_TOKEN_TO_PARTICIPATE_IN_CHALLENGE); // JKCOIN on devnet
 
-      // Initialize challenge on the blockchain
       const txs = await contractService.initializeChallenge(
         program,
         challengeId,
@@ -139,10 +265,32 @@ export default function CreateChallengeScreen() {
 
       const signature = await signAndSendTransaction(txs);
 
-      // Wait for confirmation
       await connection.confirmTransaction(signature, "confirmed");
 
       console.log("Challenge created with ID:", challengeId);
+
+      if (data.challenge_type === ChallengeType.GOOGLE_FIT) {
+        try {
+          await fetch(
+            "http://10.0.2.2:3000/api/google-fit/register-challenge",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                challenge_id: challengeId,
+                user_id: userPublickey.toString(),
+                steps_per_day: data.steps_per_day,
+                start_time: data.start_time.toISOString(),
+                end_time: data.end_time.toISOString(),
+              }),
+            }
+          );
+        } catch (error) {
+          console.error("Error registering challenge with backend:", error);
+        }
+      }
 
       setIsSubmitting(false);
       Alert.alert(
@@ -151,7 +299,6 @@ export default function CreateChallengeScreen() {
         [{ text: "OK", onPress: () => router.replace("/challenges") }]
       );
     } catch (error) {
-      // console.error("Error creating challenge:", error);
       setIsSubmitting(false);
       Alert.alert(
         "Error",
