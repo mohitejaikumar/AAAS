@@ -10,6 +10,10 @@ export default function Layout() {
         <StatusBar style="auto" />
         <Stack>
           <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="expo-auth-session"
+            options={{ headerShown: false }}
+          />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen
             name="(stack)"

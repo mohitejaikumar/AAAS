@@ -237,9 +237,9 @@ app.get("/health", (req, res) => {
 // Exchange auth code for tokens
 app.post("/api/google-fit/auth", async (req, res) => {
   try {
-    const { code, user_id, redirect_uri } = req.body;
-
-    if (!code || !user_id) {
+    const { access_token, refresh_token, user_id, expires_in } = req.body;
+    console.log("Received request body:", req.body);
+    if (!access_token || !refresh_token || !user_id || !expires_in) {
       res
         .status(400)
         .json({ error: "Authorization code and user ID are required" });
@@ -247,9 +247,10 @@ app.post("/api/google-fit/auth", async (req, res) => {
     }
 
     const result = await googleFitService.exchangeAuthCodeForTokens(
-      code,
+      access_token,
+      refresh_token,
       user_id,
-      redirect_uri
+      expires_in
     );
 
     if (result.success) {

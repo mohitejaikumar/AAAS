@@ -10,8 +10,7 @@ dotenv.config();
 // Google Fit API OAuth2 configuration
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_FIT_CLIENT_ID,
-  process.env.GOOGLE_FIT_CLIENT_SECRET,
-  process.env.GOOGLE_FIT_REDIRECT_URI || "myapp://oauth2redirect"
+  process.env.GOOGLE_FIT_CLIENT_SECRET
 );
 
 // Create Fitness client
@@ -84,29 +83,18 @@ function getChallengeAccountPDA(
 
 // Exchange authorization code for tokens
 export async function exchangeAuthCodeForTokens(
-  code: string,
+  access_token: string,
+  refresh_token: string,
   userId: string,
-  redirectUri?: string
+  expires_in?: number
 ) {
   try {
-    // If a redirect URI is provided, create a new OAuth2Client with it
-    const authClient = redirectUri
-      ? new google.auth.OAuth2(
-          process.env.GOOGLE_FIT_CLIENT_ID,
-          process.env.GOOGLE_FIT_CLIENT_SECRET,
-          redirectUri
-        )
-      : oauth2Client;
-
-    const { tokens } = await authClient.getToken(code);
-    console.log("Received tokens from Google:", tokens);
-
-    if (tokens.access_token && tokens.refresh_token && tokens.expiry_date) {
+    if (access_token && refresh_token && expires_in) {
       // Store tokens for this user
       userTokens.set(userId, {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        expiry_date: tokens.expiry_date,
+        access_token: access_token,
+        refresh_token: refresh_token,
+        expiry_date: Date.now() + expires_in * 1000,
       });
 
       return { success: true };
@@ -168,6 +156,7 @@ async function fetchStepCount(
       },
     } as any)) as any; // Type assertion to avoid type errors
 
+    console.log("Response:", response);
     // Extract step count from the response
     let stepCount = 0;
     if (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -26,7 +26,7 @@ import { useWallet } from "../contexts/WalletContext";
 import { useConnection } from "../hooks/useConnection";
 import { MINT_OF_TOKEN_TO_PARTICIPATE_IN_CHALLENGE } from "../utils";
 import * as Google from "expo-auth-session/providers/google";
-
+import { makeRedirectUri } from "expo-auth-session";
 // Define the schema
 const challengeFormSchema = z.object({
   title: z.string().min(4, { message: "Title must be at least 4 characters" }),
@@ -56,7 +56,7 @@ type ChallengeFormValues = z.infer<typeof challengeFormSchema>;
 // Google Fit configuration
 const GOOGLE_FIT_CLIENT_ID =
   "669237031928-cjknnm3bd4q4e8j7a9r6j73vp438of9b.apps.googleusercontent.com"; // Replace with your actual client ID
-const GOOGLE_FIT_REDIRECT_URI = "myapp://oauth2redirect"; // Replace with your app's redirect URI
+
 const GOOGLE_FIT_SCOPE =
   "https://www.googleapis.com/auth/fitness.activity.read";
 
@@ -71,9 +71,14 @@ export default function CreateChallengeScreen() {
   const [googleFitAuthorized, setGoogleFitAuthorized] = useState(false);
   const { program, userPublickey, signAndSendTransaction } = useWallet();
   const connection = useConnection();
+  const redirectUri = makeRedirectUri({
+    scheme: "com.jk2003.aaasapp",
+    path: "/(tabs)/create-challenge",
+  });
   const [request, response, promptAsync] = Google.useAuthRequest({
     androidClientId: GOOGLE_FIT_CLIENT_ID,
     scopes: [GOOGLE_FIT_SCOPE],
+    redirectUri: redirectUri,
   });
 
   const {
@@ -114,21 +119,61 @@ export default function CreateChallengeScreen() {
           },
           {
             text: "Authorize",
-            onPress: () => promptAsync(),
+            onPress: requestGoogleFitAuthorization,
           },
         ]
       );
     }
   }, [challengeType]);
 
+  const handleRedirect = async () => {
+    console.log("calling api");
+    if (response?.type != "success") {
+      console.log("Authorization Failed", response);
+      Alert.alert(
+        "Authorization Failed",
+        "Failed to complete Google Fit authorization"
+      );
+      return;
+    }
+    console.log("response", response);
+    try {
+      console.log(response.authentication?.accessToken);
+      console.log(response?.authentication?.refreshToken);
+      const apiUrl = `${process.env.EXPO_PUBLIC_API_URL}/api/google-fit/auth`;
+      console.log("Sending code to API:", apiUrl);
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          access_token: response.authentication?.accessToken,
+          refresh_token: response.authentication?.refreshToken,
+          user_id: userPublickey.toString(),
+          expires_in: response.authentication?.expiresIn,
+        }),
+      });
+      const responseData = await res.json();
+      console.log("API response:", responseData);
+      setGoogleFitAuthorized(true);
+      Alert.alert(
+        "Authorization Successful",
+        "Google Fit has been successfully authorized for step tracking."
+      );
+    } catch (error) {
+      console.error("Error in register googleFit:", error);
+    }
+  };
+
   useEffect(() => {
-    console.log(response);
+    handleRedirect();
   }, [response]);
 
   const requestGoogleFitAuthorization = async () => {
     try {
       const result = await promptAsync();
-      console.log("Prompt async result:", response);
+      console.log("Prompt async result:", result);
     } catch (error) {
       console.error("Error requesting Google Fit authorization:", error);
       Alert.alert(
@@ -138,68 +183,7 @@ export default function CreateChallengeScreen() {
     }
   };
 
-  const handleRedirect = async (event) => {
-    const { url } = event;
-    console.log("Handling redirect URL:", url);
-
-    if (url && url.includes("code=")) {
-      try {
-        // Extract code properly, handling URL encoding
-        const code = decodeURIComponent(url.split("code=")[1].split("&")[0]);
-        console.log("Extracted code:", code);
-
-        // Use your actual backend URL here (not localhost for mobile)
-        const apiUrl = "http://10.0.2.2:3000/api/google-fit/auth"; // For Android emulator
-
-        console.log("Sending code to API:", apiUrl);
-        const response = await fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            code,
-            user_id: userPublickey.toString(),
-            redirect_uri: GOOGLE_FIT_REDIRECT_URI, // Send the redirect_uri with the request
-          }),
-        });
-
-        const responseData = await response.json();
-        console.log("API response:", responseData);
-
-        if (response.ok) {
-          setGoogleFitAuthorized(true);
-          Alert.alert(
-            "Authorization Successful",
-            "Google Fit has been successfully authorized for step tracking."
-          );
-        } else {
-          Alert.alert(
-            "Authorization Failed",
-            `Failed to complete Google Fit authorization. Error: ${
-              responseData.error || "Unknown error"
-            }`
-          );
-        }
-      } catch (error) {
-        console.error("Error exchanging auth code:", error);
-        Alert.alert(
-          "Authorization Failed",
-          `Failed to complete Google Fit authorization: ${error.message}`
-        );
-      }
-    } else if (url) {
-      console.log("Redirect URL doesn't contain auth code:", url);
-      Alert.alert(
-        "Authorization Failed",
-        "Did not receive authorization code from Google. Please try again."
-      );
-    }
-  };
-
-  // useEffect(() => {
-  //   console.log(response);
-  // }, [response]);
+  useEffect(() => {}, [response]);
 
   const addPrivateParticipant = () => {
     if (!privateParticipant.trim()) {
@@ -272,7 +256,7 @@ export default function CreateChallengeScreen() {
       if (data.challenge_type === ChallengeType.GOOGLE_FIT) {
         try {
           await fetch(
-            "http://10.0.2.2:3000/api/google-fit/register-challenge",
+            `${process.env.EXPO_PUBLIC_API_URL}/api/google-fit/register-challenge`,
             {
               method: "POST",
               headers: {
