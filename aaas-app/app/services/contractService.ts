@@ -215,6 +215,7 @@ export const claimChallenge = async (
 export const getUserChallengeStatus = async (
   program: Program<AaasContract>,
   challengeId: number,
+  
   userPublicKey: PublicKey
 ) => {
   try {

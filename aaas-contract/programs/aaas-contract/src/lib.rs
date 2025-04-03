@@ -467,7 +467,7 @@ pub struct VoteForVoteBasedChallenge<'info> {
         init_if_needed,
         payer = signer,
         space = 8 + VoteAccount::INIT_SPACE,
-        seeds = [b"vote_account".as_ref(), challenge_account.key().as_ref(), user_address.as_ref()],
+        seeds = [b"vote_account".as_ref(), challenge_account.key().as_ref(), signer.key().as_ref(), user_address.as_ref()],
         bump
     )]
     pub vote_account: Account<'info, VoteAccount>,

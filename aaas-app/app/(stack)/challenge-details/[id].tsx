@@ -279,6 +279,13 @@ export default function ChallengeDetailsScreen() {
     if (!hasUserJoined()) return false;
     if (status !== ChallengeStatus.COMPLETED) return false;
 
+    // Check if 30 minutes have passed since the end time (voting period)
+    const now = new Date();
+    const thirtyMinutesAfterEnd = new Date(
+      challenge.end_time.getTime() + 30 * 60 * 1000
+    );
+    if (now < thirtyMinutesAfterEnd) return false;
+
     // For vote-based challenges, check if positive votes are greater than negative votes
     if (challenge.challenge_type === "Votebased") {
       return (
@@ -573,7 +580,10 @@ export default function ChallengeDetailsScreen() {
               !hasUserLostChallenge() &&
               status === ChallengeStatus.COMPLETED && (
                 <Text style={styles.actionHint}>
-                  You didn't complete the challenge requirements.
+                  {new Date() <
+                  new Date(challenge.end_time.getTime() + 30 * 60 * 1000)
+                    ? "30-minute voting period in progress. You can claim your reward after voting ends."
+                    : "You didn't complete the challenge requirements."}
                 </Text>
               )}
 

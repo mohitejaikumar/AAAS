@@ -273,6 +273,7 @@ export async function processAllChallenges(program: Program<AaasContract>) {
     const endDate = new Date(challenge.endTime).getTime();
 
     if (now < startDate || now > endDate) {
+      console.log("Challenge not active, skipping");
       continue;
     }
 
@@ -280,7 +281,7 @@ export async function processAllChallenges(program: Program<AaasContract>) {
 
     // Fetch the step count for this user since the last update
     const stepCount = await fetchStepCount(challenge.userId, lastUpdated, now);
-
+    console.log("Step count:", stepCount);
     if (stepCount !== null) {
       // Update the blockchain with the new step count
       const result = await updateUserStepCount(
@@ -291,6 +292,7 @@ export async function processAllChallenges(program: Program<AaasContract>) {
       );
 
       if (result.success) {
+        console.log("Updated step count on blockchain");
         // Update the last updated timestamp
         challenge.lastUpdated = now;
         challengeData.set(challengeId, challenge);
