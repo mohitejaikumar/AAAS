@@ -224,7 +224,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       return signature;
     } catch (error) {
-      // console.error("Error signing and sending transaction:", error);
+      console.error("Error signing and sending transaction:", error);
       throw error;
     }
   };

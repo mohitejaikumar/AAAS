@@ -186,7 +186,7 @@ export default function ChallengeDetailsScreen() {
       setIsClaiming(true);
 
       // Call the claimChallenge function from wallet context
-      const signature = await claimChallenge(parseInt(challenge.id, 10));
+      const signature = await claimChallenge(parseInt(id as string, 10));
 
       console.log("Claimed reward with signature:", signature);
 

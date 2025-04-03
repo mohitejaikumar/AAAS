@@ -59,6 +59,7 @@ pub mod aaas_contract {
         challenge_account.is_private = is_private;
         challenge_account.private_group = private_group;
         challenge_account.bump = context.bumps.challenge_account;
+        challenge_account.treasury_bump = context.bumps.treasury_account;
         Ok(())
     }
 
@@ -171,10 +172,20 @@ pub mod aaas_contract {
             mint: context.accounts.mint.to_account_info(),
             authority: context.accounts.treasury_account.to_account_info(),
         };
+
+        let signers_seeds: &[&[&[u8]]] = &[
+            &[
+                b"treasury_account",
+                &challenge_account.challenge_id.to_le_bytes(),
+                &[challenge_account.treasury_bump],
+            ],
+        ];
+
         let cpi_ctx = CpiContext::new(
             context.accounts.token_program.to_account_info(),
             transfer_accounts_option,
-        );
+        ).with_signer(signers_seeds);
+        
         transfer_checked(cpi_ctx, amount_to_refund, context.accounts.mint.decimals)?;
 
         Ok(())
@@ -516,6 +527,7 @@ pub struct ChallengeAccount {
     pub money_pool: u64,
     pub money_per_participant: u64,
     pub treasury_account: Pubkey,
+    pub treasury_bump: u8,
     pub is_private: bool,
     #[max_len(10)]
     pub private_group: Vec<Pubkey>, // this will be used to store the private group of the challenge

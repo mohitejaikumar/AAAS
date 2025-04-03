@@ -199,7 +199,6 @@ export const claimChallenge = async (
     const tx = await program.methods
       .claimChallenge(new BN(challengeId))
       .accounts({
-        signer: userPublicKey,
         mint: mint,
         treasuryAccount: treasuryAccount,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -208,7 +207,7 @@ export const claimChallenge = async (
 
     return tx;
   } catch (error) {
-    // console.error("Error claiming challenge:", error);
+    console.error("Error claiming challenge:", error);
     throw error;
   }
 };

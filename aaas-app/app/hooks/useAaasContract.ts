@@ -98,7 +98,7 @@ export function useAaasContract() {
 
       return await signAndSendTransaction(transaction);
     } catch (error) {
-      // console.error("Error claiming challenge:", error);
+      console.error("Error claiming challenge:", error);
       throw error;
     }
   };
