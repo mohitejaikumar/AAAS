@@ -141,7 +141,8 @@ export default function VotingChallengeScreen() {
           // For each participant, check if the current user has already voted
           const voteAccountAddress = await contractService.getVoteAccountPDA(
             challengeAccountPDA,
-            new PublicKey(userChallengeData.userAddress)
+            new PublicKey(userChallengeData.userAddress),
+            userPublickey
           );
 
           let hasAlreadyVoted = false;

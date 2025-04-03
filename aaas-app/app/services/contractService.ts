@@ -82,12 +82,14 @@ export const getUserChallengeAccountPDA = async (
 // Get PDA for vote account
 export const getVoteAccountPDA = async (
   challengeAccountPDA: PublicKey,
-  userPubkey: PublicKey
+  userPubkey: PublicKey,
+  signerPubkey: PublicKey
 ) => {
   const [pda] = await PublicKey.findProgramAddressSync(
     [
       Buffer.from("vote_account"),
       challengeAccountPDA.toBuffer(),
+      signerPubkey.toBuffer(),
       userPubkey.toBuffer(),
     ],
     PROGRAM_ID
@@ -215,7 +217,7 @@ export const claimChallenge = async (
 export const getUserChallengeStatus = async (
   program: Program<AaasContract>,
   challengeId: number,
-  
+
   userPublicKey: PublicKey
 ) => {
   try {
@@ -349,7 +351,6 @@ export const initializeChallenge = async (
 
     // Convert private group strings to PublicKeys
     const privateGroupPubkeys = privateGroup.map((addr) => new PublicKey(addr));
-
 
     // Create the challenge information object
     const challengeInformation = {

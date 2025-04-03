@@ -37,6 +37,13 @@ interface UserChallenge {
   };
 }
 
+// Interface for voted challenge data
+interface VotedChallenge {
+  id: string;
+  title: string;
+  start_time: number;
+}
+
 export default function ProfileScreen() {
   const [user, setUser] = useState({
     pubkey: "",
@@ -48,11 +55,15 @@ export default function ProfileScreen() {
     coinsWonVoting: 0,
   });
   const [myChallenges, setMyChallenges] = useState<UserChallenge[]>([]);
+  const [votedChallenges, setVotedChallenges] = useState<
+    Map<string, VotedChallenge>
+  >(new Map());
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingVotes, setIsLoadingVotes] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
-  const { userPublickey, program } = useWallet();
-  const { fetchChallenges } = useAaasContract();
+  const { userPublickey, program, signMessages } = useWallet();
+  const { fetchChallenges, claimChallenge } = useAaasContract();
 
   const copyAddressToClipboard = async () => {
     if (userPublickey) {
@@ -188,21 +199,94 @@ export default function ProfileScreen() {
     }
   };
 
+  // Function to load challenges the user has voted for
+  const loadVotedChallenges = async () => {
+    try {
+      setIsLoadingVotes(true);
+      if (!program || !userPublickey) {
+        setVotedChallenges(new Map());
+        return;
+      }
+      console.log("userPublickey", userPublickey);
+      const voteAccounts = (await program.account.voteAccount.all()).filter(
+        (voteAccount) => {
+          return voteAccount.account.voterAddress.equals(userPublickey);
+        }
+      );
+      console.log("voteAccounts", voteAccounts);
+
+      for (const voteAccount of voteAccounts) {
+        const challengeData = await program.account.challengeAccount.fetch(
+          voteAccount.account.challengeAddress.toString()
+        );
+        console.log("challengeData", challengeData);
+        setVotedChallenges((prev) => {
+          const newMap = new Map(prev);
+          newMap.set(voteAccount.account.challengeAddress.toString(), {
+            id: challengeData.challengeId.toString(),
+            title: challengeData.challengeInformation.challengeName,
+            start_time: challengeData.startTime * 1000,
+          });
+          return newMap;
+        });
+      }
+    } catch (error) {
+      console.error("Error loading voted challenges:", error);
+    } finally {
+      setIsLoadingVotes(false);
+    }
+  };
+
+  // Function to claim vote reward
+  const claimVoteReward = async (challengeId: string) => {
+    try {
+      if (!program || !userPublickey) return;
+
+      const id = parseInt(challengeId);
+
+      const message = `claim vote`;
+      const signature = await signMessages(message);
+
+      await fetch(`${process.env.EXPO_PUBLIC_API_URL}/vote-claim`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          challengeId: id,
+          signature: signature[0].toString(),
+          message: message,
+          publicKey: userPublickey.toString(),
+        }),
+      });
+
+      Alert.alert("Success", "Vote reward claimed successfully!");
+      // Refresh voted challenges
+      loadVotedChallenges();
+    } catch (error) {
+      Alert.alert("Error", "Failed to claim vote reward. Please try again.");
+      // console.error("Error claiming vote reward:", error);
+    }
+  };
+
   // Function to handle refresh
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadUserChallenges();
+    await Promise.all([loadUserChallenges(), loadVotedChallenges()]);
+    setRefreshing(false);
   };
 
   useEffect(() => {
     if (userPublickey && program) {
       loadUserChallenges();
+      loadVotedChallenges();
     } else {
       setUser((prev) => ({
         ...prev,
         pubkey: userPublickey?.toString() ?? "",
       }));
       setIsLoading(false);
+      setIsLoadingVotes(false);
     }
   }, [userPublickey, program]);
 
@@ -350,6 +434,26 @@ export default function ProfileScreen() {
     </TouchableOpacity>
   );
 
+  // Render voted challenge item
+  const renderVotedChallengeItem = ({ item }: { item: VotedChallenge }) => (
+    <TouchableOpacity
+      style={styles.challengeCard}
+      onPress={() => navigateToChallenge(item.id)}
+      activeOpacity={0.7}>
+      <Text style={styles.challengeTitle}>{item.title}</Text>
+      <Text style={styles.endDateText}>
+        {new Date(item.start_time).toLocaleDateString()}
+      </Text>
+      <View style={styles.challengeFooter}>
+        <TouchableOpacity
+          style={styles.claimButton}
+          onPress={() => claimVoteReward(item.id)}>
+          <Text style={styles.claimButtonText}>Claim Reward</Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <ScrollView
@@ -422,6 +526,33 @@ export default function ProfileScreen() {
               <Text style={styles.emptyStateText}>
                 No challenges joined yet
               </Text>
+              <TouchableOpacity
+                style={styles.browseButton}
+                onPress={() => router.push("/(tabs)/challenges")}>
+                <Text style={styles.browseButtonText}>Browse Challenges</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>My Votes</Text>
+          {isLoadingVotes ? (
+            <ActivityIndicator
+              size="large"
+              color="#6366f1"
+              style={styles.loader}
+            />
+          ) : votedChallenges.size > 0 ? (
+            <FlatList
+              data={Array.from(votedChallenges.values())}
+              renderItem={renderVotedChallengeItem}
+              keyExtractor={(item) => item.id}
+              scrollEnabled={false}
+            />
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No voted challenges yet</Text>
               <TouchableOpacity
                 style={styles.browseButton}
                 onPress={() => router.push("/(tabs)/challenges")}>
@@ -661,5 +792,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#059669",
     flexShrink: 0,
+  },
+  claimButton: {
+    backgroundColor: "#6366f1",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  claimButtonText: {
+    color: "#ffffff",
+    fontWeight: "600",
+    fontSize: 14,
   },
 });

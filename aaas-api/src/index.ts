@@ -53,7 +53,8 @@ const verifySignature = (
   }
 
   try {
-    const { message, signature, publicKey } = req.body as SignedRequest;
+    console.log("req.body", req.body);
+    const { message, signature, publicKey } = req.body;
 
     if (!message || !signature || !publicKey) {
       res
@@ -64,8 +65,13 @@ const verifySignature = (
 
     // Decode the base64 encoded message, signature and public key
     const decodedMessage = new TextEncoder().encode(message);
-    const decodedSignature = new TextEncoder().encode(signature);
-    const decodedPublicKey = new TextEncoder().encode(publicKey);
+    // Parse the comma-separated signature string into a Uint8Array
+    const decodedSignature = signature.includes(",")
+      ? new Uint8Array(
+          signature.split(",").map((num: string) => parseInt(num.trim(), 10))
+        )
+      : new TextEncoder().encode(signature);
+    const decodedPublicKey = new PublicKey(publicKey).toBytes();
 
     // Verify that the message was signed by the owner of the publicKey
     const isValid = nacl.sign.detached.verify(
@@ -137,7 +143,7 @@ async function transferJKCOIN(to: PublicKey, amount: number) {
       new PublicKey(MINT_OF_TOKEN_FOR_REWARD),
       keypair.publicKey
     );
-
+    console.log("voterATA", voterATA);
     await mintTo(
       connection,
       keypair,
@@ -146,6 +152,7 @@ async function transferJKCOIN(to: PublicKey, amount: number) {
       keypair.publicKey,
       amount
     );
+    console.log("transferJKCOIN");
   } catch (error) {
     console.error("Error transferring JKCOIN:", error);
     throw error;
@@ -154,9 +161,10 @@ async function transferJKCOIN(to: PublicKey, amount: number) {
 
 // claim the tokens
 app.post("/vote-claim", async (req: Request, res: Response) => {
-  const { challengeId } = req.body;
+  const { challengeId, publicKey } = req.body;
   const challengeAccountPDA = getChallengeAccountPDA(challengeId);
   try {
+    console.log("challengeAccountPDA", challengeAccountPDA);
     const challengeAccount = await program.account.challengeAccount.fetch(
       challengeAccountPDA[0]
     );
@@ -168,14 +176,19 @@ app.post("/vote-claim", async (req: Request, res: Response) => {
         });
         return;
       }
-
+      console.log("challengeAccountPDA", challengeAccountPDA[0]);
+      console.log(
+        "participants",
+        await program.account.userChallengeAccount.all()
+      );
       // check if the voter has voted everyone except himself
       // for this get all the participants
       const participants = (
         await program.account.userChallengeAccount.all()
       ).filter(
         (participant) =>
-          participant.account.challengeAddress == challengeAccountPDA[0]
+          participant.account.challengeAddress.toString() ==
+          challengeAccountPDA[0].toString()
       );
       // now check if there exists voteAccount corresponding to the participant
       const correspondingVoteAccount = (
@@ -184,12 +197,17 @@ app.post("/vote-claim", async (req: Request, res: Response) => {
         return (
           participants.some(
             (participant) =>
-              participant.account.userAddress == voteAccount.account.userAddress
+              participant.account.userAddress.toString() ==
+              voteAccount.account.userAddress.toString()
           ) &&
           challengeAccountPDA[0].toString() ==
-            voteAccount.account.challengeAddress.toString()
+            voteAccount.account.challengeAddress.toString() &&
+          publicKey == voteAccount.account.voterAddress.toString()
         );
       });
+
+      console.log("correspondingVoteAccount", correspondingVoteAccount);
+      console.log("participants", participants);
 
       // check if the voter has voted everyone except himself and other case that he has not participated in the challenge
       if (
@@ -200,9 +218,12 @@ app.post("/vote-claim", async (req: Request, res: Response) => {
         const voter = participants.find(
           (participant) => participant.account.userAddress == keypair.publicKey
         );
+        console.log("voter", voter);
         if (voter) {
+          console.log("voter", voter);
           // valid case
           await transferJKCOIN(voter.account.userAddress, 10);
+          console.log("Vote claimed successfully");
           res.json({
             message: "Vote claimed successfully",
           });
@@ -213,13 +234,15 @@ app.post("/vote-claim", async (req: Request, res: Response) => {
         participants.length != 0
       ) {
         // valid case
-        await transferJKCOIN(keypair.publicKey, 10);
+        console.log("voting");
+        await transferJKCOIN(new PublicKey(publicKey), 10);
         res.json({
           message: "Vote claimed successfully",
         });
         return;
       }
     }
+    console.log("challengeAccount", challengeAccount);
     res.json({
       message: "Unauthorized to claim vote",
     });

@@ -43,6 +43,7 @@ interface WalletContextType {
   signAndSendAllTransaction: (
     instructions: TransactionInstruction[]
   ) => Promise<string>;
+  signMessages: (message: string) => Promise<Uint8Array<ArrayBufferLike>[]>;
   anchorWallet: anchor.Wallet;
   program: anchor.Program<AaasContract> | null;
 }
@@ -105,7 +106,6 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
         return await handleAuthorizationResult(authorizationResult);
       } catch (error) {
-        
         setIsConnecting(() => false);
       }
     },
@@ -263,6 +263,29 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const message = "Hello world!";
+  const messageBuffer = new Uint8Array(
+    message.split("").map((c) => c.charCodeAt(0))
+  );
+
+  const signMessages = async (message: string) => {
+    return transact(async (wallet) => {
+      const authorizationResult = await wallet.authorize({
+        cluster: "devnet",
+        identity: APP_IDENTITY,
+      });
+
+      const signedMessages = await wallet.signMessages({
+        addresses: [authorizationResult.accounts[0].address],
+        payloads: [
+          new Uint8Array(message.split("").map((c) => c.charCodeAt(0))),
+        ],
+      });
+
+      return signedMessages;
+    });
+  };
+
   const anchorWallet = useMemo(() => {
     return {
       signTransaction,
@@ -303,6 +326,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         anchorWallet,
         program,
         signAndSendAllTransaction,
+        signMessages,
       }}>
       {children}
     </WalletContext.Provider>

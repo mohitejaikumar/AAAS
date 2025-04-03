@@ -731,6 +731,10 @@ export type AaasContract = {
                 path: "challengeAccount";
               },
               {
+                kind: "account";
+                path: "signer";
+              },
+              {
                 kind: "arg";
                 path: "userAddress";
               }
@@ -1158,6 +1162,10 @@ export type AaasContract = {
           {
             name: "bump";
             type: "u8";
+          },
+          {
+            name: "voterAddress";
+            type: "pubkey";
           }
         ];
       };
