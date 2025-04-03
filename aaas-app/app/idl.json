@@ -1059,6 +1059,10 @@
             "type": "pubkey"
           },
           {
+            "name": "treasury_bump",
+            "type": "u8"
+          },
+          {
             "name": "is_private",
             "type": "bool"
           },

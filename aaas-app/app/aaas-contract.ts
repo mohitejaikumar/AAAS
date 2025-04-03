@@ -1065,6 +1065,10 @@ export type AaasContract = {
             "type": "pubkey"
           },
           {
+            "name": "treasuryBump",
+            "type": "u8"
+          },
+          {
             "name": "isPrivate",
             "type": "bool"
           },
