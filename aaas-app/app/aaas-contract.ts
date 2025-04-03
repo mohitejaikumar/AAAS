@@ -1300,6 +1300,10 @@ export type AaasContract = {
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "voterAddress",
+            "type": "pubkey"
           }
         ]
       }

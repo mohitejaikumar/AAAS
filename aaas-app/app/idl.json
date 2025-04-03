@@ -1294,6 +1294,10 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "voter_address",
+            "type": "pubkey"
           }
         ]
       }

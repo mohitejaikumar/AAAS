@@ -285,6 +285,7 @@ pub mod aaas_contract {
                         vote_account.bump = context.bumps.vote_account;
                         vote_account.challenge_address = challenge_account.key();
                         vote_account.user_address = user_challenge_account.user_address;
+                        vote_account.voter_address = context.accounts.signer.key();
                     }
                     ChallengeType::Github { commits: _} => {
                         if is_completed {
@@ -297,6 +298,7 @@ pub mod aaas_contract {
                         vote_account.bump = context.bumps.vote_account;
                         vote_account.challenge_address = challenge_account.key();
                         vote_account.user_address = user_challenge_account.user_address;
+                        vote_account.voter_address = context.accounts.signer.key();
                     }
                     _ => return Err(ErrorCode::InvalidVerificationType.into()),
                 }
@@ -556,6 +558,7 @@ pub struct VoteAccount {
     pub is_voted: bool,
     pub is_completed: bool,
     pub bump: u8,
+    pub voter_address: Pubkey,
 }
 
 #[error_code]
