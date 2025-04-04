@@ -168,7 +168,7 @@ pub mod aaas_contract {
         // refund the money from the treasury account to the user account
         let transfer_accounts_option = TransferChecked {
             from: treasury_account.to_account_info(),
-            to: context.accounts.signer.to_account_info(),
+            to: context.accounts.user_token_account.to_account_info(),
             mint: context.accounts.mint.to_account_info(),
             authority: context.accounts.treasury_account.to_account_info(),
         };
@@ -419,6 +419,13 @@ pub struct ClaimChallenge<'info> {
     pub mint: InterfaceAccount<'info, Mint>,
     #[account(mut)]
     pub treasury_account: InterfaceAccount<'info, TokenAccount>,
+    #[account(
+        mut,
+        associated_token::mint = mint,
+        associated_token::authority = signer,
+        associated_token::token_program = token_program,
+    )]
+    pub user_token_account: InterfaceAccount<'info, TokenAccount>,
     #[account(
         mut,
         seeds = [b"user_account".as_ref(), signer.key().as_ref()],
