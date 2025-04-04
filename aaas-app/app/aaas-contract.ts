@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/aaas_contract.json`.
  */
 export type AaasContract = {
-  "address": "2qZ14Js1pzXRRDC2CWLYeRCNx7Lge6sEzFmoRSsZz1Cj",
+  "address": "3hVGVR6onYRsf3UHajMMcLgZ5EGowqUMbJqYkqtiArFY",
   "metadata": {
     "name": "aaasContract",
     "version": "0.1.0",
