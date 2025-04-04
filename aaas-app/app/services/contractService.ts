@@ -113,10 +113,13 @@ export const getTreasuryAccountPDA = async (challengeId: number) => {
 export const getAllChallenges = async (program: Program<AaasContract>) => {
   try {
     const challengeAccounts = await program.account.challengeAccount.all();
+    console.log(
+      ".........................................................................................."
+    );
     console.log(challengeAccounts);
     return challengeAccounts;
   } catch (error) {
-    // console.error("Error fetching challenges:", error);
+    console.error(error);
     throw error;
   }
 };

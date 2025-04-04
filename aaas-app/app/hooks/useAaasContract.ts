@@ -23,7 +23,7 @@ export function useAaasContract() {
       const challengeAccounts = await contractService.getAllChallenges(program);
       return challengeAccounts.map(contractService.formatChallengeData);
     } catch (error) {
-      // console.error("Error fetching challenges:", error);
+      console.error("Error fetching challenges:", error);
       throw error;
     }
   };
