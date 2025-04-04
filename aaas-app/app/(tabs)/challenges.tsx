@@ -52,7 +52,7 @@ export default function ChallengesScreen() {
       Alert.alert(
         "Error",
         "Failed to load challenges. Please try again later.",
-        [{ text: "Reload", onPress: () => loadChallenges() }]
+        [{ text: "Reload" }]
       );
     } finally {
       setIsLoading(false);

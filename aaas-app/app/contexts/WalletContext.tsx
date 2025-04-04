@@ -301,7 +301,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     const provider = contractService.getProvider(connection, anchorWallet);
     console.log("Provider initialized");
     const programInstance = contractService.getProgram(provider);
-    console.log("Program instance:", programInstance);
+    console.log("Program instance:");
     setProgram(() => programInstance);
   }, [connection, anchorWallet]);
 
