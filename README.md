@@ -12,7 +12,7 @@ https://github.com/user-attachments/assets/f3573923-37fd-44cf-913e-abbe9a1781b7
 
 ## Overview
 
-AAAS is a decentralized platform that connects algorithm creators with users who need algorithmic solutions. The platform consists of:
+AAAS is a decentralized platform to compete with yourself, earn rewards by voting for challenges The platform consists of:
 
 1. A mobile application built with React Native and Expo
 2. A Solana blockchain contract built with Anchor
