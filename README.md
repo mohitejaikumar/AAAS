@@ -21,6 +21,10 @@ https://github.com/user-attachments/assets/f3573923-37fd-44cf-913e-abbe9a1781b7
 7. Monitered challenges are those like GoogleFit app integration, where app data is used for verification
 8. For Votebased challenges the voter will get a reward token of our platform .
 
+## Tests
+<img width="1236" height="427" alt="image" src="https://github.com/user-attachments/assets/fec50d73-2b13-4ede-bbb4-7ea8f5ad13f7" />
+
+
 ## Overview
 
 AAAS is a decentralized platform to compete with yourself, earn rewards by voting for challenges The platform consists of:
