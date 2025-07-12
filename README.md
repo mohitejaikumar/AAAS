@@ -10,6 +10,17 @@ https://github.com/user-attachments/assets/f3573923-37fd-44cf-913e-abbe9a1781b7
 
 # Algorithms as a Service (AAAS)
 
+## IDEA
+
+1. You will put on challenges it can be private/public .
+2. Interested people can join the challenge and with some fees .
+3. After the challenge is finished the winners can claim there money back, and lossers money will be divided among the winners
+4. Also there can be 2 types of challenges Votebased and Monitered based
+5. Votebased are those where after the challenge is finished there will be voting period of 30min in that 30min people will vote for all the users in the challenges whom they support by positive or negative vote .
+6. if positive vote is >=negative vote the participant has won 
+7. Monitered challenges are those like GoogleFit app integration, where app data is used for verification
+8. For Votebased challenges the voter will get a reward token of our platform .
+
 ## Overview
 
 AAAS is a decentralized platform to compete with yourself, earn rewards by voting for challenges The platform consists of:
