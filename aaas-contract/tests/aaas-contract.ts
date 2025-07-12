@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { AaasContract } from "../target/types/aaas_contract";
+import { AaasContract } from "../target/types/aaas-contract";
 import {
   PublicKey,
   Keypair,
@@ -41,7 +41,7 @@ describe("aaas-contract", () => {
   // Token accounts
   let mint: PublicKey;
   let payerAta: PublicKey;
-  let user1Ata: PublicKey;
+  let user1Ata: PublicKey;   
   let user2Ata: PublicKey;
 
   // PDAs
